@@ -9,12 +9,9 @@
 
 # Import libraries
 from almapiwrapper import ApiKeys
-from almapiwrapper.users import User, NewUser, fetch_users, fetch_user_in_all_iz, Fee, check_synchro
-from almapiwrapper.inventory import IzBib, NzBib, Holding, Item
-from almapiwrapper.record import JsonData, XmlData
+from almapiwrapper.inventory import Item
 from almapiwrapper.configlog import config_log
 import sys
-import os
 import logging
 import pandas as pd
 import time
@@ -45,7 +42,7 @@ barcodes_file = sys.argv[1]
 barcodes = pd.read_csv(barcodes_file)
 
 df = pd.DataFrame(columns=['IZ MMS ID', 'NZ MMS ID', 'Holding', 'Item', 'Barcode', 'Library', 'Location', 'Process'])
-for barcode in barcodes.iloc[:,0].values:
+for barcode in barcodes.iloc[:, 0].values:
     item = Item(barcode=barcode, zone=iz, env=env)
     df.loc[len(df)] = {'IZ MMS ID': item.bib.get_mms_id(),
                        'NZ MMS ID': item.bib.get_nz_mms_id(),
@@ -65,4 +62,3 @@ df.to_csv('data/export.csv')
 
 
 print(df)
-

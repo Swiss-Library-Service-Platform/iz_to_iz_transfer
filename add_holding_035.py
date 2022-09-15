@@ -9,7 +9,7 @@
 
 # Import libraries
 
-from almapiwrapper.inventory import IzBib, NzBib, Holding, Item
+from almapiwrapper.inventory import Holding
 from almapiwrapper.configlog import config_log
 import sys
 import logging

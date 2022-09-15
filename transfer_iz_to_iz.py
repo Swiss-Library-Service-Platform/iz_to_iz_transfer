@@ -3,7 +3,7 @@
 #####################
 
 # Import libraries
-from almapiwrapper.inventory import IzBib, NzBib, Holding, Item
+from almapiwrapper.inventory import IzBib, Holding, Item
 from almapiwrapper.configlog import config_log
 import pandas as pd
 from copy import deepcopy
@@ -184,12 +184,21 @@ for barcode in df['Barcode'].values:
                     field.getparent().remove(field)
 
     item_d = Item(mms_id_d, holding_id_d, zone=iz_d, env=env, data=item_temp.data, create_item=True)
-    item_d.save()
 
+    # Error handling => skip remaining process
     if item_d.error is True:
+        if 'Given field provenance has invalid value' in item_d.error_msg:
+            error_label = 'provenance_field'
+        elif 'Request failed: Invalid temp_library code' in item_d.error_msg:
+            error_label = 'temp_library'
+        else:
+            error_label = 'unknown_error'
+        df.loc[df.Barcode == barcode, 'Error'] = error_label
 
-        df.loc[df.Barcode == barcode, 'Error'] = item_s.error_msg
+        # Skip remaining process
         continue
+
+    item_d.save()
 
     df.loc[df.Barcode == barcode, 'Item_id_s'] = item_s.get_item_id()
     df.loc[df.Barcode == barcode, 'Item_id_d'] = item_d.get_item_id()
