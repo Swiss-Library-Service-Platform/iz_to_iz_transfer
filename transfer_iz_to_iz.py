@@ -43,7 +43,7 @@ env = {'Production': 'P',
        'Sandbox': 'S'}.get(sheet.cell(row=5, column=2).value, 'P')
 
 # Load barcodes
-barcodes = pd.read_excel(sys.argv[1], sheet_name=1, dtype=str)
+barcodes = pd.read_excel(sys.argv[1], sheet_name=1, dtype=str)['Barcode']
 logging.info(f'{len(barcodes)} barcodes loaded from "{sys.argv[1]}" file.')
 
 # Load locations
@@ -149,9 +149,19 @@ for barcode in df['Barcode'].values:
         holding_temp = deepcopy(item_s.holding)
         holding_temp.location = location_d
         holding_temp.library = library_d
+        # holding_temp.data.find('.//datafield[@tag="852"]/subfield[@code="j"]').text = holding_temp.data.find('.//datafield[@tag="852"]/subfield[@code="j"]').text + "_suffixe"
+
 
         holding_d = Holding(mms_id=mms_id_d, zone=iz_d, env=env, data=holding_temp.data, create_holding=True)
         holding_d.save()
+        if holding_d.error is True:
+            if 'Holding for this title at this location already exists' in holding_d.error_msg:
+                error_label = 'similar_holding_existing'
+            else:
+                error_label = 'unknown_holding_error'
+
+            df.loc[df.Barcode == barcode, 'Error'] = error_label
+            continue
         holding_id_d = holding_d.get_holding_id()
 
     df.loc[df.Barcode == barcode, 'Holding_id_s'] = holding_id_s
@@ -176,7 +186,7 @@ for barcode in df['Barcode'].values:
     # Clean blocking fields
     if FORCE_COPY is True:
         for field_name in ['provenance', 'temp_location', 'temp_library', 'in_temp_location',
-                           'statistics_note_1', 'statistics_note_2', 'statistics_note_1']:
+                           'statistics_note_1', 'statistics_note_2', 'statistics_note_1', 'po_line']:
             fields = item_temp.data.findall(f'.//{field_name}')
             for field in fields:
                 if field.text is not None or (field.text != 'false' and field_name == 'in_temp_location'):
@@ -192,7 +202,7 @@ for barcode in df['Barcode'].values:
         elif 'Request failed: Invalid temp_library code' in item_d.error_msg:
             error_label = 'temp_library'
         else:
-            error_label = 'unknown_error'
+            error_label = 'unknown_item_error'
         df.loc[df.Barcode == barcode, 'Error'] = error_label
 
         # Skip remaining process
@@ -205,7 +215,7 @@ for barcode in df['Barcode'].values:
 
     # Change barcode of source item
     item_s.barcode = 'OLD_' + item_s.barcode
-    item_s.update()
+    # item_s.update()
 
     df.loc[df.Barcode == barcode, 'Copied'] = True
     df.to_csv(process_file_path, index=False)
