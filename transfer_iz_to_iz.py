@@ -149,10 +149,22 @@ for barcode in df['Barcode'].values:
         holding_temp = deepcopy(item_s.holding)
         holding_temp.location = location_d
         holding_temp.library = library_d
+
+        callnumber_s = holding_temp.data.find('.//datafield[@tag="852"]/subfield[@code="j"]').text
+
+        holding_d = None
+
+        for holding in bib_d.get_holdings():
+            if holding.data.find('.//datafield[@tag="852"]/subfield[@code="j"]').text == callnumber_s:
+                logging.warning(f'{repr(item_s)}: holding found with same callnumber "{callnumber_s}"')
+                holding_d = holding
+                break
+
         # holding_temp.data.find('.//datafield[@tag="852"]/subfield[@code="j"]').text = holding_temp.data.find('.//datafield[@tag="852"]/subfield[@code="j"]').text + "_suffixe"
 
+        if holding_d is None:
+            holding_d = Holding(mms_id=mms_id_d, zone=iz_d, env=env, data=holding_temp.data, create_holding=True)
 
-        holding_d = Holding(mms_id=mms_id_d, zone=iz_d, env=env, data=holding_temp.data, create_holding=True)
         holding_d.save()
         if holding_d.error is True:
             if 'Holding for this title at this location already exists' in holding_d.error_msg:
@@ -185,7 +197,7 @@ for barcode in df['Barcode'].values:
 
     # Clean blocking fields
     if FORCE_COPY is True:
-        for field_name in ['provenance', 'temp_location', 'temp_library', 'in_temp_location',
+        for field_name in ['provenance', 'temp_location', 'temp_library', 'in_temp_location', 'pattern_type',
                            'statistics_note_1', 'statistics_note_2', 'statistics_note_1', 'po_line']:
             fields = item_temp.data.findall(f'.//{field_name}')
             for field in fields:
@@ -215,7 +227,7 @@ for barcode in df['Barcode'].values:
 
     # Change barcode of source item
     item_s.barcode = 'OLD_' + item_s.barcode
-    # item_s.update()
+    item_s.update()
 
     df.loc[df.Barcode == barcode, 'Copied'] = True
     df.to_csv(process_file_path, index=False)
