@@ -99,7 +99,7 @@ Start job
 
 for barcode in df['Barcode'].values:
 
-    # skip row if already processed
+    # Skip row if already processed
     if len(df.loc[(df['Barcode'] == barcode) & (df['Copied'])]) > 0:
         continue
 
@@ -117,9 +117,13 @@ for barcode in df['Barcode'].values:
     if item_s.error is True:
         continue
 
+    # Bib record
+    # ----------
+
     # Check if copy bib record is required
     if len(df.loc[df['MMS_id_s'] == mms_id_s]) > 0:
         mms_id_d = df.loc[df['MMS_id_s'] == mms_id_s, 'MMS_id_d'].values[0]
+        bib_d = IzBib(nz_mms_id, zone=iz_d, env=env)
     else:
         bib_d = IzBib(nz_mms_id, zone=iz_d, env=env, from_nz_mms_id=True, copy_nz_rec=True)
         mms_id_d = bib_d.get_mms_id()
@@ -129,40 +133,54 @@ for barcode in df['Barcode'].values:
     df.loc[df.Barcode == barcode, 'NZ_mms_id'] = nz_mms_id
     df.to_csv(process_file_path, index=False)
 
+    # Holding record
+    # --------------
+
     # Check if copy holding is required
     if len(df.loc[df['Holding_id_s'] == holding_id_s]) > 0:
+
+        # Holding already created
         holding_id_d = df.loc[df['Holding_id_s'] == holding_id_s, 'Holding_id_d'].values[0]
     else:
         item_s.holding.save()
 
+        # Get location according to the provided table
         loc_temp = locations_table.loc[(locations_table['Source library code'] == item_s.holding.library) &
                                        (locations_table['Source location code'] == item_s.holding.location),
                                        ['Destination library code', 'Destination location code']]
 
         if len(loc_temp) == 0:
+            # No corresponding location found => error
             logging.error(f'Location {item_s.holding.library}/{item_s.holding.location} not in locations table')
             continue
 
+        # Get library and location destination
         library_d = loc_temp['Destination library code'].values[0]
         location_d = loc_temp['Destination location code'].values[0]
 
+        # Load data of the source holding
         holding_temp = deepcopy(item_s.holding)
+
+        # Change location and library
         holding_temp.location = location_d
         holding_temp.library = library_d
 
-        callnumber_s = holding_temp.data.find('.//datafield[@tag="852"]/subfield[@code="j"]').text
+        # Get callnumber of the source holding
+        callnumber_s = holding_temp.callnumber
 
         holding_d = None
 
+        # Check if exists an destination holding with the same callnumber
         for holding in bib_d.get_holdings():
-            if holding.data.find('.//datafield[@tag="852"]/subfield[@code="j"]').text == callnumber_s:
+            callnumber_d = holding.callnumber
+
+            if callnumber_d is not None and callnumber_d == callnumber_s:
                 logging.warning(f'{repr(item_s)}: holding found with same callnumber "{callnumber_s}"')
                 holding_d = holding
                 break
 
-        # holding_temp.data.find('.//datafield[@tag="852"]/subfield[@code="j"]').text = holding_temp.data.find('.//datafield[@tag="852"]/subfield[@code="j"]').text + "_suffixe"
-
         if holding_d is None:
+            # No holding found => need to be created
             holding_d = Holding(mms_id=mms_id_d, zone=iz_d, env=env, data=holding_temp.data, create_holding=True)
 
         holding_d.save()
@@ -181,16 +199,21 @@ for barcode in df['Barcode'].values:
     df.to_csv(process_file_path, index=False)
 
     # Create item
-
+    # -----------
     loc_temp = locations_table.loc[(locations_table['Source library code'] == item_s.library) &
                                    (locations_table['Source location code'] == item_s.location),
                                    ['Destination library code', 'Destination location code']]
+
     if len(loc_temp) == 0:
+        # No corresponding location found => error
         logging.error(f'Location {item_s.library}/{item_s.location} not in locations table')
         continue
+
+    # Get the new location and library of the item
     library_d = loc_temp['Destination library code'].values[0]
     location_d = loc_temp['Destination location code'].values[0]
 
+    # Prepare the new item with a copy of the source item
     item_temp = deepcopy(item_s)
     item_temp.location = location_d
     item_temp.library = library_d
@@ -213,6 +236,8 @@ for barcode in df['Barcode'].values:
             error_label = 'provenance_field'
         elif 'Request failed: Invalid temp_library code' in item_d.error_msg:
             error_label = 'temp_library'
+        elif'pattern_type is invalid' in item_d.error_msg:
+            error_label = 'pattern_type'
         else:
             error_label = 'unknown_item_error'
         df.loc[df.Barcode == barcode, 'Error'] = error_label
@@ -220,7 +245,7 @@ for barcode in df['Barcode'].values:
         # Skip remaining process
         continue
 
-    item_d.save()
+    # item_d.save()
 
     df.loc[df.Barcode == barcode, 'Item_id_s'] = item_s.get_item_id()
     df.loc[df.Barcode == barcode, 'Item_id_d'] = item_d.get_item_id()
