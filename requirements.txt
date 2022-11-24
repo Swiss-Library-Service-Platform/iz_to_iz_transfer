@@ -1,4 +1,4 @@
-almapiwrapper==0.8.5
+almapiwrapper==0.10.1
 lxml==4.9.1
 numpy==1.23.3
 openpyxl==3.0.10
