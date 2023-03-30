@@ -2,6 +2,13 @@
 # Transfer IZ to IZ #
 #####################
 
+# This script transfers item from IZ source to IZ destination.
+# The information about the transfer should be given in a Excel file
+# This file should be compliant with a given format
+
+# To start the script:
+# python transfer_iz_to_iz.py <dataForm.xlsx>
+
 # Import libraries
 from almapiwrapper.inventory import IzBib, Holding, Item
 from almapiwrapper.configlog import config_log
@@ -16,10 +23,12 @@ import openpyxl
 config_log(sys.argv[1].replace('\\', '/').split('/')[-1].split('.')[0])
 
 FORCE_COPY = False
+FORCE_UPDATE = False
 
 # Item fields blocking copy like provenance are removed
 if len(sys.argv) == 3 and sys.argv[2] == '--force':
     FORCE_COPY = True
+    FORCE_UPDATE = True
 
 # All fields of the item are preserved
 elif len(sys.argv) == 2:
@@ -43,11 +52,14 @@ env = {'Production': 'P',
        'Sandbox': 'S'}.get(sheet.cell(row=5, column=2).value, 'P')
 
 # Load barcodes
-barcodes = pd.read_excel(sys.argv[1], sheet_name=1, dtype=str)['Barcode']
+barcodes = pd.read_excel(sys.argv[1], sheet_name=1, dtype=str)['Barcode'].dropna().str.strip("'")
 logging.info(f'{len(barcodes)} barcodes loaded from "{sys.argv[1]}" file.')
 
 # Load locations
 locations_table = pd.read_excel(sys.argv[1], sheet_name=2, dtype=str)
+
+# Load item policies
+item_policies_table = pd.read_excel(sys.argv[1], sheet_name=3, dtype=str)
 
 # Check if processing file exists
 if os.path.exists(process_file_path) is True:
@@ -97,7 +109,9 @@ Start job
 # Start copy of data #
 ######################
 
-for barcode in df['Barcode'].values:
+for i, barcode in enumerate(df['Barcode'].values):
+
+    logging.info(f'{i+1} / {len(df["Barcode"].values)}: Handling {barcode}')
 
     # Skip row if already processed
     if len(df.loc[(df['Barcode'] == barcode) & (df['Copied'])]) > 0:
@@ -123,10 +137,13 @@ for barcode in df['Barcode'].values:
     # Check if copy bib record is required
     if len(df.loc[df['MMS_id_s'] == mms_id_s]) > 0:
         mms_id_d = df.loc[df['MMS_id_s'] == mms_id_s, 'MMS_id_d'].values[0]
-        bib_d = IzBib(nz_mms_id, zone=iz_d, env=env)
+        bib_d = IzBib(nz_mms_id, zone=iz_d, env=env, from_nz_mms_id=True)
     else:
         bib_d = IzBib(nz_mms_id, zone=iz_d, env=env, from_nz_mms_id=True, copy_nz_rec=True)
         mms_id_d = bib_d.get_mms_id()
+
+    if bib_d.error is True:
+        continue
 
     df.loc[df.Barcode == barcode, 'MMS_id_s'] = mms_id_s
     df.loc[df.MMS_id_s == mms_id_s, 'MMS_id_d'] = mms_id_d
@@ -148,6 +165,14 @@ for barcode in df['Barcode'].values:
         loc_temp = locations_table.loc[(locations_table['Source library code'] == item_s.holding.library) &
                                        (locations_table['Source location code'] == item_s.holding.location),
                                        ['Destination library code', 'Destination location code']]
+
+        if len(loc_temp) == 0:
+            # Check if default location is available
+            loc_temp = locations_table.loc[(locations_table['Source library code'] == '*DEFAULT*') &
+                                           (locations_table['Source location code'] == '*DEFAULT*') &
+                                           (~pd.isnull(locations_table['Destination library code'])) &
+                                           (~pd.isnull(locations_table['Destination location code'])),
+                                           ['Destination library code', 'Destination location code']]
 
         if len(loc_temp) == 0:
             # No corresponding location found => error
@@ -174,7 +199,7 @@ for barcode in df['Barcode'].values:
         for holding in bib_d.get_holdings():
             callnumber_d = holding.callnumber
 
-            if callnumber_d is not None and callnumber_d == callnumber_s:
+            if callnumber_d is not None and callnumber_d.strip() == callnumber_s.strip():
                 logging.warning(f'{repr(item_s)}: holding found with same callnumber "{callnumber_s}"')
                 holding_d = holding
                 break
@@ -205,6 +230,14 @@ for barcode in df['Barcode'].values:
                                    ['Destination library code', 'Destination location code']]
 
     if len(loc_temp) == 0:
+        # Check if default location is available
+        loc_temp = locations_table.loc[(locations_table['Source library code'] == '*DEFAULT*') &
+                                       (locations_table['Source location code'] == '*DEFAULT*') &
+                                       (~pd.isnull(locations_table['Destination library code'])) &
+                                       (~pd.isnull(locations_table['Destination location code'])),
+                                       ['Destination library code', 'Destination location code']]
+
+    if len(loc_temp) == 0:
         # No corresponding location found => error
         logging.error(f'Location {item_s.library}/{item_s.location} not in locations table')
         continue
@@ -213,15 +246,32 @@ for barcode in df['Barcode'].values:
     library_d = loc_temp['Destination library code'].values[0]
     location_d = loc_temp['Destination location code'].values[0]
 
+    # Get the item policy
+    policy_s = item_s.data.find('.//policy').text
+    print(item_policies_table)
+    policy_temp = item_policies_table.loc[item_policies_table['Source item policy code'] == policy_s]
+
+    # Check if default policy is available
+    if len(policy_temp) == 0:
+        policy_temp = item_policies_table.loc[item_policies_table['Source item policy code'] == '*DEFAULT*']
+
+    if len(policy_temp) == 0:
+        # No corresponding item policy found => error
+        logging.error(f'Item policy {policy_s} not in item policies table')
+        continue
+
+    policy_d = policy_temp['Destination item policy code'].values[0]
+
     # Prepare the new item with a copy of the source item
     item_temp = deepcopy(item_s)
     item_temp.location = location_d
     item_temp.library = library_d
+    item_temp.data.find('.//policy').text = policy_d
 
     # Clean blocking fields
     if FORCE_COPY is True:
         for field_name in ['provenance', 'temp_location', 'temp_library', 'in_temp_location', 'pattern_type',
-                           'statistics_note_1', 'statistics_note_2', 'statistics_note_1', 'po_line']:
+                           'statistics_note_1', 'statistics_note_2', 'statistics_note_3', 'po_line']:
             fields = item_temp.data.findall(f'.//{field_name}')
             for field in fields:
                 if field.text is not None or (field.text != 'false' and field_name == 'in_temp_location'):
@@ -232,18 +282,29 @@ for barcode in df['Barcode'].values:
 
     # Error handling => skip remaining process
     if item_d.error is True:
-        if 'Given field provenance has invalid value' in item_d.error_msg:
+        if f'barcode {item_temp.barcode} already exists' in item_d.error_msg:
+            # Get item by barcode
+            item_d = Item(barcode=item_temp.barcode, zone=iz_d, env=env)
+            error_label = 'already_exist'
+        elif 'Given field provenance has invalid value' in item_d.error_msg:
             error_label = 'provenance_field'
         elif 'Request failed: Invalid temp_library code' in item_d.error_msg:
             error_label = 'temp_library'
-        elif'pattern_type is invalid' in item_d.error_msg:
+        elif 'pattern_type is invalid' in item_d.error_msg:
             error_label = 'pattern_type'
+        elif 'No response from Alma' in item_d.error_msg:
+            item_d = Item(barcode=item_temp.barcode, zone=iz_d, env=env)
+            if item_d.error is True:
+                error_label = 'error_503_failed_to_create'
+            else:
+                error_label = 'error_503_success_to_create'
         else:
             error_label = 'unknown_item_error'
         df.loc[df.Barcode == barcode, 'Error'] = error_label
 
         # Skip remaining process
-        continue
+        if error_label not in ['already_exist', 'error_503_success_to_create']:
+            continue
 
     # item_d.save()
 
@@ -251,7 +312,22 @@ for barcode in df['Barcode'].values:
     df.loc[df.Barcode == barcode, 'Item_id_d'] = item_d.get_item_id()
 
     # Change barcode of source item
+    if item_s.barcode.startswith('OLD_'):
+        # Skip this step if barcode already updated
+        logging.warning(f'{repr(item_d)}: barcode already updated "{item_d.barcode}"')
+        continue
+
     item_s.barcode = 'OLD_' + item_s.barcode
+
+    # Clean source item
+    if FORCE_UPDATE is True:
+        for field_name in ['pattern_type']:
+            fields = item_s.data.findall(f'.//{field_name}')
+            for field in fields:
+                if field.text is not None:
+                    logging.warning(f'{repr(item_temp)}: remove field "{field_name}", content: "{field.text}"')
+                    field.getparent().remove(field)
+
     item_s.update()
 
     df.loc[df.Barcode == barcode, 'Copied'] = True

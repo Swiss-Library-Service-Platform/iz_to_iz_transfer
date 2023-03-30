@@ -2,10 +2,15 @@
 # Add 035 field to holdings when items are left in source IZ #
 ##############################################################
 
+# This script add a 035 field to the source holding with the information about the destination holding
+# This 035 field has the following pattern: """(IZ-{iz_destination}){Holding_id_destination}"""
+# This field is useful in order to be able to add other items to the same holding in the future
+
+# The information about modification should be given in a Excel file
+# This file should be compliant with a given format
+
 # To start the script:
-# python add_holding_035.py <file_name_processing.csv>
-# For example:
-# python add_holding_035.py
+# python add_holding_035.py <dataForm.xlsx>
 
 # Import libraries
 
@@ -63,7 +68,7 @@ for row in list(df.iterrows()):
     holding = Holding(mms_id=row[1]['MMS_id_s'], holding_id=row[1]['Holding_id_s'], zone=iz_s, env=env)
     new_035_field = f'(IZ-{iz_d}){row[1]["Holding_id_d"]}'
 
-    # Check if the field already existst, if yes, skip the holding
+    # Check if the field already exist, if yes, skip the holding
     if len([field for field in holding.data.findall('.//datafield[@tag="035"]/subfield[@code="a"]')
             if field.text == new_035_field]) > 0:
         logging.warning(f'{repr(holding)}: 035 field with "{new_035_field}" text already existing')
