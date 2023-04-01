@@ -112,8 +112,6 @@ Start job
 
 for i, barcode in enumerate(df['Barcode'].values):
 
-    time.sleep(0.3)
-
     logging.info(f'{i+1} / {len(df["Barcode"].values)}: Handling {barcode}')
 
     # Skip row if already processed
@@ -202,7 +200,7 @@ for i, barcode in enumerate(df['Barcode'].values):
         for holding in bib_d.get_holdings():
             callnumber_d = holding.callnumber
 
-            if callnumber_d is not None and callnumber_s.strip() is not None \
+            if callnumber_d is not None and callnumber_s is not None \
                     and callnumber_d.strip() == callnumber_s.strip():
                 logging.warning(f'{repr(item_s)}: holding found with same callnumber "{callnumber_s}"')
                 holding_d = holding
