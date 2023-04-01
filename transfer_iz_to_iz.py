@@ -18,6 +18,7 @@ import sys
 import os
 import logging
 import openpyxl
+import time
 
 # Config logs
 config_log(sys.argv[1].replace('\\', '/').split('/')[-1].split('.')[0])
@@ -111,6 +112,8 @@ Start job
 
 for i, barcode in enumerate(df['Barcode'].values):
 
+    time.sleep(0.3)
+
     logging.info(f'{i+1} / {len(df["Barcode"].values)}: Handling {barcode}')
 
     # Skip row if already processed
@@ -199,7 +202,8 @@ for i, barcode in enumerate(df['Barcode'].values):
         for holding in bib_d.get_holdings():
             callnumber_d = holding.callnumber
 
-            if callnumber_d is not None and callnumber_d.strip() == callnumber_s.strip():
+            if callnumber_d is not None and callnumber_s.strip() is not None \
+                    and callnumber_d.strip() == callnumber_s.strip():
                 logging.warning(f'{repr(item_s)}: holding found with same callnumber "{callnumber_s}"')
                 holding_d = holding
                 break
@@ -248,7 +252,7 @@ for i, barcode in enumerate(df['Barcode'].values):
 
     # Get the item policy
     policy_s = item_s.data.find('.//policy').text
-    print(item_policies_table)
+
     policy_temp = item_policies_table.loc[item_policies_table['Source item policy code'] == policy_s]
 
     # Check if default policy is available
