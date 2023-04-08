@@ -344,4 +344,4 @@ for i, barcode in enumerate(df['Barcode'].values):
     df.to_csv(process_file_path, index=False)
 
 # Make a report with the errors
-df.loc[~df['Copied']].to_csv(process_file_path.replace('_processing.csv', '_not_copied.csv'), index=False)
+df.loc[(~df['Copied'])|(df['Error'])].to_csv(process_file_path.replace('_processing.csv', '_not_copied.csv'), index=False)
