@@ -18,25 +18,12 @@ import sys
 import os
 import logging
 import openpyxl
-import time
 
 # Config logs
 config_log(sys.argv[1].replace('\\', '/').split('/')[-1].split('.')[0])
 
-FORCE_COPY = False
-FORCE_UPDATE = False
-
-# Item fields blocking copy like provenance are removed
-if len(sys.argv) == 3 and sys.argv[2] == '--force':
-    FORCE_COPY = True
-    FORCE_UPDATE = True
-
-# All fields of the item are preserved
-elif len(sys.argv) == 2:
-    FORCE_COPY = False
-
-# Bad argument, program stop
-else:
+if len(sys.argv) != 2:
+    # Bad argument, program stop
     logging.critical('Argument missing or not correct')
     exit()
 
@@ -51,6 +38,8 @@ iz_s = sheet.cell(row=3, column=2).value
 iz_d = sheet.cell(row=4, column=2).value
 env = {'Production': 'P',
        'Sandbox': 'S'}.get(sheet.cell(row=5, column=2).value, 'P')
+FORCE_COPY = {'Yes': True, 'No': False}.get(sheet.cell(row=7, column=2).value, False)
+FORCE_UPDATE = {'Yes': True, 'No': False}.get(sheet.cell(row=8, column=2).value, False)
 
 # Load barcodes
 barcodes = pd.read_excel(sys.argv[1], sheet_name=1, dtype=str)['Barcode'].dropna().str.strip("'")
@@ -202,7 +191,7 @@ for i, barcode in enumerate(df['Barcode'].values):
 
             if callnumber_d is not None and callnumber_s is not None \
                     and callnumber_d.strip() == callnumber_s.strip():
-                logging.warning(f'{repr(item_s)}: holding found with same callnumber "{callnumber_s}"')
+                logging.info(f'{repr(item_s)}: holding found with same callnumber "{callnumber_s}"')
                 holding_d = holding
                 break
 
@@ -277,7 +266,7 @@ for i, barcode in enumerate(df['Barcode'].values):
             fields = item_temp.data.findall(f'.//{field_name}')
             for field in fields:
                 if field.text is not None or (field.text != 'false' and field_name == 'in_temp_location'):
-                    logging.warning(f'{repr(item_temp)}: remove field "{field_name}", content: "{field.text}"')
+                    logging.info(f'{repr(item_temp)}: remove field "{field_name}", content: "{field.text}"')
                     field.getparent().remove(field)
 
     item_d = Item(mms_id_d, holding_id_d, zone=iz_d, env=env, data=item_temp.data, create_item=True)
@@ -327,7 +316,7 @@ for i, barcode in enumerate(df['Barcode'].values):
             fields = item_s.data.findall(f'.//{field_name}')
             for field in fields:
                 if field.text is not None:
-                    logging.warning(f'{repr(item_temp)}: remove field "{field_name}", content: "{field.text}"')
+                    logging.info(f'{repr(item_temp)}: remove field "{field_name}", content: "{field.text}"')
                     field.getparent().remove(field)
 
     item_s.update()
