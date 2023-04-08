@@ -119,6 +119,8 @@ for i, barcode in enumerate(df['Barcode'].values):
 
     # Skip the row if error on the item
     if item_s.error is True:
+        error_label = 'Error by fetching source item'
+        df.loc[df.Barcode == barcode, 'Error'] = error_label
         continue
 
     # Bib record
@@ -133,6 +135,8 @@ for i, barcode in enumerate(df['Barcode'].values):
         mms_id_d = bib_d.get_mms_id()
 
     if bib_d.error is True:
+        error_label = 'Unable to get a destination bib record'
+        df.loc[df.Barcode == barcode, 'Error'] = error_label
         continue
 
     df.loc[df.Barcode == barcode, 'MMS_id_s'] = mms_id_s
@@ -167,6 +171,8 @@ for i, barcode in enumerate(df['Barcode'].values):
         if len(loc_temp) == 0:
             # No corresponding location found => error
             logging.error(f'Location {item_s.holding.library}/{item_s.holding.location} not in locations table')
+            error_label = 'Location not existing in location table'
+            df.loc[df.Barcode == barcode, 'Error'] = error_label
             continue
 
         # Get library and location destination
@@ -183,14 +189,21 @@ for i, barcode in enumerate(df['Barcode'].values):
         # Get callnumber of the source holding
         callnumber_s = holding_temp.callnumber
 
+        # Suppress empty chars from call numbers
+        if callnumber_s is not None:
+            callnumber_s.strip()
+
         holding_d = None
 
         # Check if exists an destination holding with the same callnumber
         for holding in bib_d.get_holdings():
             callnumber_d = holding.callnumber
 
-            if callnumber_d is not None and callnumber_s is not None \
-                    and callnumber_d.strip() == callnumber_s.strip():
+            # Suppress empty chars from call numbers
+            if callnumber_d is not None:
+                callnumber_d = callnumber_d.strip()
+
+            if callnumber_d == callnumber_s:
                 logging.info(f'{repr(item_s)}: holding found with same callnumber "{callnumber_s}"')
                 holding_d = holding
                 break
@@ -231,6 +244,8 @@ for i, barcode in enumerate(df['Barcode'].values):
     if len(loc_temp) == 0:
         # No corresponding location found => error
         logging.error(f'Location {item_s.library}/{item_s.location} not in locations table')
+        error_label = 'Location not existing in location table'
+        df.loc[df.Barcode == barcode, 'Error'] = error_label
         continue
 
     # Get the new location and library of the item
@@ -249,6 +264,8 @@ for i, barcode in enumerate(df['Barcode'].values):
     if len(policy_temp) == 0:
         # No corresponding item policy found => error
         logging.error(f'Item policy {policy_s} not in item policies table')
+        error_label = 'Item policy not existing in policies table'
+        df.loc[df.Barcode == barcode, 'Error'] = error_label
         continue
 
     policy_d = policy_temp['Destination item policy code'].values[0]
@@ -287,8 +304,10 @@ for i, barcode in enumerate(df['Barcode'].values):
             item_d = Item(barcode=item_temp.barcode, zone=iz_d, env=env)
             if item_d.error is True:
                 error_label = 'error_503_failed_to_create'
+                logging.error(f'{repr(item_d)}: failed to create it')
             else:
                 error_label = 'error_503_success_to_create'
+                logging.warning(f'{repr(item_d)}: success to create it')
         else:
             error_label = 'unknown_item_error'
         df.loc[df.Barcode == barcode, 'Error'] = error_label
@@ -323,3 +342,6 @@ for i, barcode in enumerate(df['Barcode'].values):
 
     df.loc[df.Barcode == barcode, 'Copied'] = True
     df.to_csv(process_file_path, index=False)
+
+# Make a report with the errors
+df.loc[~df['Copied']].to_csv(process_file_path.replace('_processing.csv', '_not_copied.csv'), index=False)
