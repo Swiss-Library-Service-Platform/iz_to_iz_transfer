@@ -3,7 +3,7 @@
 #####################
 
 # This script transfers item from IZ source to IZ destination.
-# The information about the transfer should be given in a Excel file
+# The information about the transfer should be given in an Excel file
 # This file should be compliant with a given format
 
 # To start the script:
@@ -195,7 +195,7 @@ for i, barcode in enumerate(df['Barcode'].values):
 
         holding_d = None
 
-        # Check if exists an destination holding with the same callnumber
+        # Check if exists a destination holding with the same callnumber
         for holding in bib_d.get_holdings():
             callnumber_d = holding.callnumber
 
@@ -344,4 +344,5 @@ for i, barcode in enumerate(df['Barcode'].values):
     df.to_csv(process_file_path, index=False)
 
 # Make a report with the errors
-df.loc[(~df['Copied'])|(df['Error'])].to_csv(process_file_path.replace('_processing.csv', '_not_copied.csv'), index=False)
+df.loc[(~df['Copied']) | (df['Error'])].to_csv(process_file_path.replace('_processing.csv', '_not_copied.csv'),
+                                               index=False)
