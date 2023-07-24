@@ -316,7 +316,7 @@ for i, barcode in enumerate(df['Barcode'].values):
         if error_label not in ['already_exist', 'error_503_success_to_create']:
             continue
 
-    # item_d.save()
+    item_d.save()
 
     df.loc[df.Barcode == barcode, 'Item_id_s'] = item_s.get_item_id()
     df.loc[df.Barcode == barcode, 'Item_id_d'] = item_d.get_item_id()
@@ -331,7 +331,8 @@ for i, barcode in enumerate(df['Barcode'].values):
 
     # Clean source item
     if FORCE_UPDATE is True:
-        for field_name in ['pattern_type']:
+        for field_name in ['provenance', 'temp_location', 'temp_library', 'in_temp_location', 'pattern_type',
+                           'statistics_note_1', 'statistics_note_2', 'statistics_note_3', 'po_line']:
             fields = item_s.data.findall(f'.//{field_name}')
             for field in fields:
                 if field.text is not None:

@@ -1,31 +1,22 @@
 # Import libraries
-from almapiwrapper.inventory import IzBib, NzBib, Holding, Item
-from almapiwrapper.record import XmlData
+from almapiwrapper.inventory import Item
 from almapiwrapper.configlog import config_log
-from almapiwrapper import ApiKeys
 import pandas as pd
-from copy import deepcopy
-import sys
-# import os
-# import logging
+
 # import openpyxl
 
 # Config logs
 config_log()
+barcodes = pd.read_excel('data/test_data.xlsx', sheet_name=1, dtype=str)['Barcode'].dropna().str.strip("'")
 
-df = pd.read_csv('data/test_data_processing_save.csv', dtype=str)
-df = df.replace('False', False)
-df = df.replace('True', True)
-df = df.replace('NaN', None)
-for i, row in df.iterrows():
-    item = Item(row['MMS_id_s'], row['Holding_id_s'], row['Item_id_s'], 'UBS', 'S')
-    if 'OLD_' in item.barcode:
+for i, barcode in enumerate(barcodes):
+    item = Item(barcode='OLD_' + barcode, zone='UBS', env='S')
+    if item.error is False:
         item.barcode = item.barcode.replace('OLD_', '')
         item.update()
 
-barcodes = df['Barcode']
-for barcode in barcodes.values:
+for barcode in barcodes:
     item = Item(barcode=barcode, zone='ISR', env='S')
-    if item.bib is not None:
+    if item.error is False and item.bib is not None:
         item.bib.delete(force=True)
     # item.delete()

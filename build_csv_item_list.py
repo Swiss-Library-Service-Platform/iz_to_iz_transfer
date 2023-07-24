@@ -24,7 +24,6 @@ import openpyxl
 import pandas as pd
 import os
 from datetime import date
-from lxml import etree
 
 # Config logs
 config_log(sys.argv[1].replace('\\', '/').split('/')[-1].split('.')[0] + '_add_035')
