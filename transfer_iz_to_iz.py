@@ -109,6 +109,7 @@ for i, barcode in enumerate(df['Barcode'].values):
 
     # Fetch item data
     item_s = Item(barcode=barcode, zone=iz_s, env=env)
+
     item_id_s = item_s.get_item_id()
     holding_id_s = item_s.get_holding_id()
     mms_id_s = item_s.get_mms_id()
@@ -120,7 +121,17 @@ for i, barcode in enumerate(df['Barcode'].values):
     # Skip the row if error on the item
     if item_s.error is True:
         error_label = 'Error by fetching source item'
+
+        # check if item already exists in the destination
+        item_d_test = Item(barcode=barcode, zone=iz_d, env=env)
+        item_s_test = Item(barcode='OLD_' + barcode, zone=iz_d, env=env)
+        if item_d_test.error is False and item_s_test.error is False:
+            error_label = 'Item in the destination IZ and barcode of source record already updated'
+            df.loc[df.Barcode == barcode, 'Copied'] = True
+
         df.loc[df.Barcode == barcode, 'Error'] = error_label
+        df.to_csv(process_file_path, index=False)
+
         continue
 
     # Bib record
