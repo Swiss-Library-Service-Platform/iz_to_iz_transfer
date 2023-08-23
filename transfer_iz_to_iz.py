@@ -124,7 +124,7 @@ for i, barcode in enumerate(df['Barcode'].values):
 
         # check if item already exists in the destination
         item_d_test = Item(barcode=barcode, zone=iz_d, env=env)
-        item_s_test = Item(barcode='OLD_' + barcode, zone=iz_d, env=env)
+        item_s_test = Item(barcode='OLD_' + barcode, zone=iz_s, env=env)
         if item_d_test.error is False and item_s_test.error is False:
             error_label = 'Item in the destination IZ and barcode of source record already updated'
             df.loc[df.Barcode == barcode, 'Copied'] = True
