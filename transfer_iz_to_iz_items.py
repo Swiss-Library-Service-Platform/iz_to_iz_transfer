@@ -1,13 +1,13 @@
-#####################
-# Transfer IZ to IZ #
-#####################
+###########################
+# Transfer IZ to IZ items #
+###########################
 
 # This script transfers item from IZ source to IZ destination.
 # The information about the transfer should be given in an Excel file
 # This file should be compliant with a given format
 
 # To start the script:
-# python transfer_iz_to_iz.py <dataForm.xlsx>
+# python transfer_iz_to_iz_items.py <dataForm.xlsx>
 
 # Import libraries
 from almapiwrapper.inventory import IzBib, Holding, Item
@@ -27,11 +27,14 @@ if len(sys.argv) != 2:
     logging.critical('Argument missing or not correct')
     exit()
 
+# File path to the source data Excel file
+src_data_file_path = sys.argv[1]
+
 # File path to the backup of the processed records
-process_file_path = 'data/' + sys.argv[1].replace('\\', '/').split('/')[-1].split('.')[0] + '_processing.csv'
+process_file_path = 'data/' + src_data_file_path.replace('\\', '/').split('/')[-1].split('.')[0] + '_items_processing.csv'
 
 # Get configuration
-wb = openpyxl.load_workbook(sys.argv[1])
+wb = openpyxl.load_workbook(src_data_file_path)
 wb.active = wb['General']
 sheet = wb.active
 iz_s = sheet.cell(row=3, column=2).value
@@ -42,14 +45,14 @@ FORCE_COPY = {'Yes': True, 'No': False}.get(sheet.cell(row=7, column=2).value, F
 FORCE_UPDATE = {'Yes': True, 'No': False}.get(sheet.cell(row=8, column=2).value, False)
 
 # Load barcodes
-barcodes = pd.read_excel(sys.argv[1], sheet_name=1, dtype=str)['Barcode'].dropna().str.strip("'")
+barcodes = pd.read_excel(src_data_file_path, sheet_name='Items', dtype=str)['Barcode'].dropna().str.strip("'")
 logging.info(f'{len(barcodes)} barcodes loaded from "{sys.argv[1]}" file.')
 
 # Load locations
-locations_table = pd.read_excel(sys.argv[1], sheet_name=2, dtype=str)
+locations_table = pd.read_excel(src_data_file_path, sheet_name='Locations_mapping', dtype=str)
 
 # Load item policies
-item_policies_table = pd.read_excel(sys.argv[1], sheet_name=3, dtype=str)
+item_policies_table = pd.read_excel(src_data_file_path, sheet_name='Item_policies_mapping', dtype=str)
 
 # Check if processing file exists
 if os.path.exists(process_file_path) is True:
@@ -77,9 +80,9 @@ else:
 # Display introduction
 print(f'''
 
-#####################
-# Transfer IZ to IZ #
-#####################
+###########################
+# Transfer IZ to IZ items #
+###########################
 
 Configuration
 =============
