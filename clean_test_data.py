@@ -1,5 +1,5 @@
 # Import libraries
-from almapiwrapper.inventory import Item, Holding
+from almapiwrapper.inventory import Item, Holding, IzBib
 from almapiwrapper.configlog import config_log
 import pandas as pd
 
@@ -26,5 +26,16 @@ for barcode in barcodes:
 for row in src_data.iterrows():
     holding_id = row[1]['Holding_id'].strip("'")
     mms_id = row[1]['IZ_MMS_id'].strip("'")
-    holding = Holding(holding_id=holding_id, mms_id=mms_id, zone='ISR', env='S')
-    holding.delete(force=True)
+    bib_s = IzBib(mms_id, zone='UBS', env='S')
+    nz_mms_id = bib_s.get_nz_mms_id()
+    if bib_s.error is True:
+        continue
+
+    bib_d = IzBib(nz_mms_id, zone='ISR', env='S', from_nz_mms_id=True)
+    if bib_d.error is True:
+        continue
+    holding_s = Holding(mms_id, holding_id, zone='UBS', env='S')
+    holdings_d = bib_d.get_holdings()
+    for holding in holdings_d:
+        if holding.callnumber == holding_s.callnumber:
+            holding.delete(force=True)
