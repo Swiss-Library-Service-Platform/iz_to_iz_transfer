@@ -210,9 +210,10 @@ for i, holding_id_s in enumerate(df['Holding_id_s'].values):
                 callnumber_d = callnumber_d.strip()
 
             if callnumber_d == callnumber_s:
-                logging.info(f'{repr(holding_s)}: holding found with same callnumber "{callnumber_s}"')
+                logging.error(f'{repr(holding_s)}: holding found with same callnumber "{callnumber_s}"')
                 holding_d = holding
-                break
+                holding_d.error = True
+                holding_d.error_msg = f'Holding for this title at this location already exists "{callnumber_s}"'
 
         if holding_d is None:
             # No holding found => need to be created
@@ -222,12 +223,14 @@ for i, holding_id_s in enumerate(df['Holding_id_s'].values):
         if holding_d.error is True:
             if 'Holding for this title at this location already exists' in holding_d.error_msg:
                 error_label = 'similar_holding_existing'
+                df.loc[df['Holding_id_s'] == holding_id_s, 'Error'] = error_label
+                holding_id_d = holding_d.holding_id
             else:
                 error_label = 'unknown_holding_error'
-
-            df.loc[df['Holding_id_s'] == holding_id_s, 'Error'] = error_label
-            continue
-        holding_id_d = holding_d.get_holding_id()
+                df.loc[df['Holding_id_s'] == holding_id_s, 'Error'] = error_label
+                continue
+        else:
+            holding_id_d = holding_d.get_holding_id()
 
     df.loc[df.Holding_id_s == holding_id_s, 'Holding_id_d'] = holding_id_d
     df.to_csv(process_file_path, index=False)
