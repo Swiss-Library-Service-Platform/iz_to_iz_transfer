@@ -5,3 +5,5 @@ records
 lib
 nohup.out
 Scripts
+**/__pycache__
+**/~*

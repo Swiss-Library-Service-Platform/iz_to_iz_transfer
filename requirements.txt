@@ -1,8 +1,8 @@
 almapiwrapper
-lxml~=4.9.2
-numpy==1.25.1
-openpyxl~=3.1.2
-pandas==2.0.3
-pytz==2023.3
-requests==2.31.0
-urllib3==2.0.4
+lxml
+numpy
+openpyxl
+pandas
+pytz
+requests
+urllib3

@@ -55,7 +55,7 @@ logging.info(f'{len(holding_ids)} holding ids loaded from "{src_data_file_path}"
 locations_table = pd.read_excel(src_data_file_path, sheet_name='Locations_mapping', dtype=str)
 
 # Check if processing file exists
-if os.path.exists(process_file_path) is True:
+if os.path.exists(process_file_path):
     df = pd.read_csv(process_file_path, dtype=str)
     df = df.replace('False', False)
     df = df.replace('True', True)
@@ -117,8 +117,8 @@ for i, holding_id_s in enumerate(df['Holding_id_s'].values):
     holding_s.save()
 
     # Skip the row if error on the item
-    if holding_s.error is True or holding_s.bib.get_mms_id() != mms_id_s:
-        if holding_s.error is True:
+    if holding_s.error or holding_s.bib.get_mms_id() != mms_id_s:
+        if holding_s.error:
             error_label = 'Error by fetching source holding'
         else:
             error_label = f'mms_id ({holding_s.bib.get_mms_id()}) of record linked to holding not same as provided mms_id'
@@ -142,7 +142,7 @@ for i, holding_id_s in enumerate(df['Holding_id_s'].values):
         bib_d = IzBib(nz_mms_id, zone=iz_d, env=env, from_nz_mms_id=True, copy_nz_rec=True)
         mms_id_d = bib_d.get_mms_id()
 
-    if bib_d.error is True:
+    if bib_d.error:
         error_label = 'Unable to get a destination bib record'
         df.loc[df.Holding_id_s == holding_id_s, 'Error'] = error_label
         continue
@@ -220,7 +220,7 @@ for i, holding_id_s in enumerate(df['Holding_id_s'].values):
             holding_d = Holding(mms_id=mms_id_d, zone=iz_d, env=env, data=holding_temp.data, create_holding=True)
 
         holding_d.save()
-        if holding_d.error is True:
+        if holding_d.error:
             if 'Holding for this title at this location already exists' in holding_d.error_msg:
                 error_label = 'similar_holding_existing'
                 df.loc[df['Holding_id_s'] == holding_id_s, 'Error'] = error_label

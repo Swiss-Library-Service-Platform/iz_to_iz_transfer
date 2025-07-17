@@ -28,11 +28,11 @@ for row in src_data.iterrows():
     mms_id = row[1]['IZ_MMS_id'].strip("'")
     bib_s = IzBib(mms_id, zone='UBS', env='S')
     nz_mms_id = bib_s.get_nz_mms_id()
-    if bib_s.error is True:
+    if bib_s.error:
         continue
 
     bib_d = IzBib(nz_mms_id, zone='ISR', env='S', from_nz_mms_id=True)
-    if bib_d.error is True:
+    if bib_d.error:
         continue
     holding_s = Holding(mms_id, holding_id, zone='UBS', env='S')
     holdings_d = bib_d.get_holdings()

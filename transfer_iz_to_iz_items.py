@@ -55,7 +55,7 @@ locations_table = pd.read_excel(src_data_file_path, sheet_name='Locations_mappin
 item_policies_table = pd.read_excel(src_data_file_path, sheet_name='Item_policies_mapping', dtype=str)
 
 # Check if processing file exists
-if os.path.exists(process_file_path) is True:
+if os.path.exists(process_file_path):
     df = pd.read_csv(process_file_path, dtype=str)
     df = df.replace('False', False)
     df = df.replace('True', True)
@@ -122,7 +122,7 @@ for i, barcode in enumerate(df['Barcode'].values):
     item_s.save()
 
     # Skip the row if error on the item
-    if item_s.error is True:
+    if item_s.error:
         error_label = 'Error by fetching source item'
 
         # check if item already exists in the destination
@@ -148,7 +148,7 @@ for i, barcode in enumerate(df['Barcode'].values):
         bib_d = IzBib(nz_mms_id, zone=iz_d, env=env, from_nz_mms_id=True, copy_nz_rec=True)
         mms_id_d = bib_d.get_mms_id()
 
-    if bib_d.error is True:
+    if bib_d.error:
         error_label = 'Unable to get a destination bib record'
         df.loc[df.Barcode == barcode, 'Error'] = error_label
         continue
@@ -227,7 +227,7 @@ for i, barcode in enumerate(df['Barcode'].values):
             holding_d = Holding(mms_id=mms_id_d, zone=iz_d, env=env, data=holding_temp.data, create_holding=True)
 
         holding_d.save()
-        if holding_d.error is True:
+        if holding_d.error:
             if 'Holding for this title at this location already exists' in holding_d.error_msg:
                 error_label = 'similar_holding_existing'
             else:
@@ -291,7 +291,7 @@ for i, barcode in enumerate(df['Barcode'].values):
     item_temp.data.find('.//policy').text = policy_d
 
     # Clean blocking fields
-    if FORCE_COPY is True:
+    if FORCE_COPY:
         for field_name in ['provenance', 'temp_location', 'temp_library', 'in_temp_location', 'pattern_type',
                            'statistics_note_1', 'statistics_note_2', 'statistics_note_3', 'po_line']:
             fields = item_temp.data.findall(f'.//{field_name}')
@@ -303,7 +303,7 @@ for i, barcode in enumerate(df['Barcode'].values):
     item_d = Item(mms_id_d, holding_id_d, zone=iz_d, env=env, data=item_temp.data, create_item=True)
 
     # Error handling => skip remaining process
-    if item_d.error is True:
+    if item_d.error:
         if f'barcode {item_temp.barcode} already exists' in item_d.error_msg:
             # Get item by barcode
             item_d = Item(barcode=item_temp.barcode, zone=iz_d, env=env)
@@ -316,7 +316,7 @@ for i, barcode in enumerate(df['Barcode'].values):
             error_label = 'pattern_type'
         elif 'No response from Alma' in item_d.error_msg:
             item_d = Item(barcode=item_temp.barcode, zone=iz_d, env=env)
-            if item_d.error is True:
+            if item_d.error:
                 error_label = 'error_503_failed_to_create'
                 logging.error(f'{repr(item_d)}: failed to create it')
             else:
@@ -344,7 +344,7 @@ for i, barcode in enumerate(df['Barcode'].values):
     item_s.barcode = 'OLD_' + item_s.barcode
 
     # Clean source item
-    if FORCE_UPDATE is True:
+    if FORCE_UPDATE:
         for field_name in ['provenance', 'temp_location', 'temp_library', 'in_temp_location', 'pattern_type',
                            'statistics_note_1', 'statistics_note_2', 'statistics_note_3', 'po_line']:
             fields = item_s.data.findall(f'.//{field_name}')
