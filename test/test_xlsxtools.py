@@ -42,11 +42,11 @@ class TestXlsTools(unittest.TestCase):
         lib = xlstools.get_corresponding_library('A100')
         self.assertEqual(lib, 'rro_fili')
 
-    def test_get_corresponding_item_policy(self):
-        excel_path = 'test/test_data/test_data_IZ_to_IZ_1.xlsx'
-        xlstools.set_config(excel_path)
-        item_policy = xlstools.get_corresponding_item_policy('08')
-        self.assertEqual(item_policy, '01')
+    # def test_get_corresponding_item_policy(self):
+    #     excel_path = 'test/test_data/test_data_IZ_to_IZ_1.xlsx'
+    #     xlstools.set_config(excel_path)
+    #     item_policy = xlstools.get_corresponding_item_policy('08')
+    #     self.assertEqual(item_policy, '01')
 
     def test_get_corresponding_vendor(self):
         excel_path = 'test/test_data/test_data_IZ_to_IZ_1.xlsx'
@@ -54,6 +54,14 @@ class TestXlsTools(unittest.TestCase):
         vendor, vendor_account = xlstools.get_corresponding_vendor('ABC_vendor', '12345')
         self.assertEqual(vendor, '000007023')
         self.assertEqual(vendor_account, '000007023')
+
+        vendor, vendor_account = xlstools.get_corresponding_vendor('A100-1044', 'zzzzzzz')
+        self.assertEqual(vendor, 'h000007024')
+        self.assertEqual(vendor_account, '000007024')
+
+        vendor, vendor_account = xlstools.get_corresponding_vendor('A100-1045', 'zzzzzzz')
+        self.assertIsNone(vendor)
+        self.assertIsNone(vendor_account)
 
     def test_get_corresponding_fund(self):
         excel_path = 'test/test_data/test_data_IZ_to_IZ_1.xlsx'

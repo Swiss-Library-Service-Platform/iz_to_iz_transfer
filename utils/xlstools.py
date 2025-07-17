@@ -82,7 +82,7 @@ def set_config(excel_filepath: str):
     config['locations_mapping'] = pd.read_excel(excel_filepath, sheet_name='Locations_mapping', dtype=str)
 
     # Get item policies mapping tab information
-    config['item_policies_mapping'] = pd.read_excel(excel_filepath, sheet_name='Item_policies_mapping', dtype=str)
+    # config['item_policies_mapping'] = pd.read_excel(excel_filepath, sheet_name='Item_policies_mapping', dtype=str)
 
     # Get vendors mapping tab information
     config['vendors_mapping'] = pd.read_excel(excel_filepath, sheet_name='Vendors_mapping', dtype=str)
@@ -198,39 +198,39 @@ def get_corresponding_library(library_s: str) -> Optional[str]:
 
     return library_d
 
-def get_corresponding_item_policy(item_policy_s: str) -> Optional[str]:
-    """
-    Returns the corresponding item policy for a given item policy.
-    Parameters
-    ----------
-    item_policy_s : str
-        The item policy name.
-
-    Returns
-    -------
-    str or None
-        The corresponding item policy name, or None if no corresponding item policy is found.
-    """
-
-    item_policies_table = get_config()['item_policies_mapping']
-
-    item_policy_temp = item_policies_table.loc[item_policies_table['Source item policy'] == item_policy_s,
-                                               'Destination item policy']
-
-    if len(item_policy_temp) == 0:
-        # Check if default item policy is available
-        item_policy_temp = item_policies_table.loc[(item_policies_table['Source item policy'] == '*DEFAULT*') &
-                                                   (~pd.isnull(item_policies_table['Destination item policy'])),
-                                                   'Destination item policy']
-
-    if len(item_policy_temp) == 0:
-        # No corresponding item policy found => error
-        return None
-
-    # Get the new item policy
-    item_policy_d = item_policy_temp.values[0]
-
-    return item_policy_d
+# def get_corresponding_item_policy(item_policy_s: str) -> Optional[str]:
+#     """
+#     Returns the corresponding item policy for a given item policy.
+#     Parameters
+#     ----------
+#     item_policy_s : str
+#         The item policy name.
+#
+#     Returns
+#     -------
+#     str or None
+#         The corresponding item policy name, or None if no corresponding item policy is found.
+#     """
+#
+#     item_policies_table = get_config()['item_policies_mapping']
+#
+#     item_policy_temp = item_policies_table.loc[item_policies_table['Source item policy'] == item_policy_s,
+#                                                'Destination item policy']
+#
+#     if len(item_policy_temp) == 0:
+#         # Check if default item policy is available
+#         item_policy_temp = item_policies_table.loc[(item_policies_table['Source item policy'] == '*DEFAULT*') &
+#                                                    (~pd.isnull(item_policies_table['Destination item policy'])),
+#                                                    'Destination item policy']
+#
+#     if len(item_policy_temp) == 0:
+#         # No corresponding item policy found => error
+#         return None
+#
+#     # Get the new item policy
+#     item_policy_d = item_policy_temp.values[0]
+#
+#     return item_policy_d
 
 
 def get_corresponding_vendor(vendor_s: str, vendor_account_s: str) -> Optional[Tuple[str, str]]:
@@ -258,6 +258,14 @@ def get_corresponding_vendor(vendor_s: str, vendor_account_s: str) -> Optional[T
 
     if len(vendor_temp) == 0:
         # Check if default vendor is available
+        vendor_temp = vendors_table.loc[(vendors_table['Source vendor code'] == vendor_s) &
+                                        (vendors_table['Source vendor account'] == '*DEFAULT*') &
+                                        (~pd.isnull(vendors_table['Destination vendor code'])) &
+                                        (~pd.isnull(vendors_table['Destination vendor account'])),
+                                        ['Destination vendor code', 'Destination vendor account']]
+
+    if len(vendor_temp) == 0:
+        # Check if default vendor is available
         vendor_temp = vendors_table.loc[(vendors_table['Source vendor code'] == '*DEFAULT*') &
                                         (vendors_table['Source vendor account'] == '*DEFAULT*') &
                                         (~pd.isnull(vendors_table['Destination vendor code'])) &
@@ -266,7 +274,7 @@ def get_corresponding_vendor(vendor_s: str, vendor_account_s: str) -> Optional[T
 
     if len(vendor_temp) == 0:
         # No corresponding vendor found => error
-        return None
+        return None, None
 
     # Get the new vendor and vendor account
     vendor_d = vendor_temp['Destination vendor code'].values[0]
