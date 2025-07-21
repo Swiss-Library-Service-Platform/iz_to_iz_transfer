@@ -98,7 +98,7 @@ class ProcessMonitor:
             return ['PoLine_s', 'MMS_id_s', 'Holding_id_s', 'Item_id_s', 'PoLine_d', 'MMS_id_d', 'Holding_id_d',
                     'Item_id_d', 'Purchase_type', 'Received', 'Copied', 'Error']
         elif self.process_type == 'Items':
-            return ['MMS_id_s', 'Holding_id_s', 'Item_id_s', 'MMS_id_d', 'Holding_id_d', 'Item_id_d', 'Copied', 'Error']
+            return ['Barcode', 'MMS_id_s', 'Holding_id_s', 'Item_id_s', 'MMS_id_d', 'Holding_id_d', 'Item_id_d', 'Copied', 'Error']
         elif self.process_type == 'Holdings':
             return ['MMS_id_s', 'Holding_id_s', 'MMS_id_d', 'Holding_id_d', 'Copied', 'Error']
         else:

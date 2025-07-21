@@ -36,7 +36,7 @@ process_monitor = ProcessMonitor(excel_filepath, 'PoLines')
 # Iterate over the PoLine numbers
 for i in process_monitor.df.index:
     logging.info(f"Processing row {i} / {len(process_monitor.df.index)}: PoLine number: {process_monitor.df.at[i, 'PoLine_s']}")
-    polines.process(i)
+    polines.process_poline(i)
 
 logging.info('PoLines transfer from IZ to IZ terminated')
 

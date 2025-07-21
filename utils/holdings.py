@@ -7,6 +7,8 @@ from copy import deepcopy
 
 import logging
 
+config = xlstools.get_config()
+
 def copy_holding_data(mms_id_s: str, holding_id_s: str, mms_id_d: str) -> None:
     """
     Copies holding data from the source IZ to the destination IZ.
@@ -26,12 +28,10 @@ def copy_holding_data(mms_id_s: str, holding_id_s: str, mms_id_d: str) -> None:
     """
 
     # Load configuration and initialize process monitor
-    config = xlstools.get_config()
     process_monitor = ProcessMonitor()
 
     # Fetch the source holding
     holding_s = Holding(mms_id_s, holding_id_s, zone=config['iz_s'], env=config['env'])
-    hol_data = deepcopy(holding_s.data)
 
     if holding_s.error:
         logging.error(f"{repr(holding_s)}: {holding_s.error_msg}")
@@ -45,7 +45,7 @@ def copy_holding_data(mms_id_s: str, holding_id_s: str, mms_id_d: str) -> None:
         process_monitor.df.loc[process_monitor.df['MMS_id_s'] == mms_id_s, 'Error'] = 'Library or location not found in destination IZ'
         return None
 
-    # Create a new holding in the destination IZ
+    # Holding should be already existing in the destination IZ, so we fetch it
     bib_d = IzBib(mms_id_d, zone=config['iz_d'], env=config['env'])
     hols_d = [hol for hol in bib_d.get_holdings() if hol.library == library_d and hol.location == location_d]
 
@@ -101,3 +101,106 @@ def copy_holding_data(mms_id_s: str, holding_id_s: str, mms_id_d: str) -> None:
     # Update the process monitor with the new holding ID
     process_monitor.set_corresponding_holding_id(holding_id_s, holding_d.holding_id)
     process_monitor.save()
+
+
+def copy_holding_to_destination_iz(i: int, bib_d: Item) -> None:
+    """
+    Copies a holding from the source IZ to the destination IZ.
+
+    Parameters
+    ----------
+    i : int
+        The index of the row in the process monitor DataFrame to process.
+
+    Returns
+    -------
+    None
+    """
+
+    process_monitor = ProcessMonitor()
+
+    # Retrieve the source holding and its details
+    mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
+    mms_id_d = process_monitor.get_corresponding_mms_id(mms_id_s)
+    holding_id_s = process_monitor.df.at[i, 'Holding_id_s']
+
+    holding_s = Holding(mms_id_s, holding_id_s, zone=config['iz_s'], env=config['env'])
+
+    if holding_s.error:
+        logging.error(f"{repr(holding_s)}: {holding_s.error_msg}")
+        process_monitor.df.loc[process_monitor.df['Holding_id_s'] == holding_id_s, 'Error'] = 'Source Holding not found'
+        process_monitor.save()
+        return None
+
+    # We need destination b to check if a corresponding holding already exists
+    if bib_d is None:
+        bib_d = IzBib(mms_id_d, zone=config['iz_d'], env=config['env'])
+        _ = bib_d.data  # Ensure the bib data is loaded
+
+    if bib_d.error:
+        logging.error(f"{repr(bib_d)}: {bib_d.error_msg}")
+        process_monitor.df.loc[process_monitor.df['MMS_id_s'] == mms_id_s, 'Error'] = 'Destination Bib not found'
+        process_monitor.save()
+        return None
+
+    # From the source holding, we get the library and location of the destination IZ according to the mapping
+    library_d, location_d = xlstools.get_corresponding_location(holding_s.library, holding_s.location)
+    if library_d is None or location_d is None:
+        logging.error(f"{repr(holding_s)}: Library or location not found in destination IZ")
+        process_monitor.df.loc[process_monitor.df['Holding_id_s'] == holding_id_s, 'Error'] = 'Library or location not found in destination IZ'
+        process_monitor.save()
+        return None
+
+    # Check if the callnumber exists already in destination holding
+    callnumber_s = holding_s.callnumber
+
+    # Suppress empty chars from call numbers
+    if callnumber_s is not None:
+        callnumber_s = callnumber_s.strip()
+
+
+    holding_d = None
+
+    # Check if exists a destination holding with the same callnumber
+    for holding in bib_d.get_holdings():
+        callnumber_d = holding.callnumber
+
+        # Suppress empty chars from call numbers
+        if callnumber_d is not None:
+            callnumber_d = callnumber_d.strip()
+
+        if callnumber_d == callnumber_s and holding.library == library_d and holding.location == location_d and holding.error is False:
+            logging.warning(f'{repr(holding_s)}: holding found with same callnumber "{callnumber_s}" and corresponding library "{library_d}" and location "{location_d}" in destination IZ.')
+            holding_d = holding
+            break
+
+
+    # No corresponding holding found, we create a new one
+    if holding_d is None:
+        holding_data = deepcopy(holding_s.data)
+
+        # Update the holding data with the destination library and location
+        subfield_b = holding_data.find('.//datafield[@tag="852"]/subfield[@code="b"]')
+        if subfield_b is not None:
+            subfield_b.text = library_d
+        else:
+            logging.warning(f"{repr(holding_s)}: Subfield 'b' not found in 852 for destination holding.")
+
+        subfield_c = holding_data.find('.//datafield[@tag="852"]/subfield[@code="c"]')
+        if subfield_c is not None:
+            subfield_c.text = location_d
+        else:
+            logging.warning(f"{repr(holding_s)}: Subfield 'c' not found in 852 for destination holding.")
+
+        holding_d = Holding(mms_id=mms_id_d, zone=config['iz_d'], env=config['env'], data=holding_data, create_holding=True)
+
+        if holding_d.error:
+            logging.error(f"{repr(holding_d)}: {holding_d.error_msg}")
+            process_monitor.df.loc[process_monitor.df['Holding_id_s'] == holding_id_s, 'Error'] = 'Destination Holding not created'
+            process_monitor.save()
+            return None
+
+    process_monitor.set_corresponding_holding_id(holding_id_s, holding_d.holding_id)
+    process_monitor.save()
+
+    return holding_d

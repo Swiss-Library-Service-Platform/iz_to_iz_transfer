@@ -1,12 +1,16 @@
+from utils import xlstools
+excel_path = 'test/test_data/test_data_IZ_to_IZ_1.xlsx'
+xlstools.set_config(excel_path)
+config = xlstools.get_config()
+
 import unittest
 from almapiwrapper.inventory import Item
 from almapiwrapper.record import XmlData
-from utils import items, xlstools
+from utils import items
 from copy import deepcopy
 from lxml import etree
 
-excel_path = 'test/test_data/test_data_IZ_to_IZ_1.xlsx'
-xlstools.set_config(excel_path)
+
 
 class TestItems(unittest.TestCase):
     def test_clean_item_fields(self):

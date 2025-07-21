@@ -8,6 +8,8 @@ import pandas as pd
 
 from almapiwrapper.acquisitions import POLine, Vendor, Invoice, fetch_invoices
 
+config = xlstools.get_config()
+
 
 def copy_poline(i: int) -> None:
     """
@@ -22,7 +24,6 @@ def copy_poline(i: int) -> None:
     -------
     None
     """
-    config = xlstools.get_config()
     process_monitor = ProcessMonitor()
     pol_number_s = process_monitor.df.at[i, 'PoLine_s']
     mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
@@ -55,7 +56,8 @@ def copy_poline(i: int) -> None:
 
     mms_id_d = process_monitor.get_corresponding_mms_id(mms_id_s)
     if mms_id_d is None:
-        mms_id_d = bibs.copy_bib_from_nz_to_dest_iz(mms_id_s)
+        bib_d = bibs.copy_bib_from_nz_to_dest_iz(mms_id_s)
+        mms_id_d = bib_d.get_mms_id() if bib_d else None
 
     # If the destination MMS ID is None, we cannot proceed
     if mms_id_d is None:
@@ -146,61 +148,3 @@ def copy_poline(i: int) -> None:
     # Update the process monitor with the new PoLine number
     process_monitor.set_corresponding_poline(pol_number_s, pol_d.pol_number, pol_purchase_type)
     process_monitor.save()
-
-
-def process(i: int) -> None:
-    """
-    Processes a single row in the process monitor DataFrame.
-
-    Parameters
-    ----------
-    i : int
-        The index of the row to process.
-
-    Returns
-    -------
-    None
-    """
-    process_monitor = ProcessMonitor()
-
-    # Check if the row is already copied
-    if process_monitor.df.at[i, 'Copied']:
-        # If the row is already copied, we skip it
-        return None
-
-    # Get the source PoLine number, MMS ID, Holding ID, and Item ID
-    pol_number_s = process_monitor.df.at[i, 'PoLine_s']
-    mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
-    holding_id_s = process_monitor.df.at[i, 'Holding_id_s']
-    item_id_s = process_monitor.df.at[i, 'Item_id_s']
-
-    pol_number_d, pol_purchase_type = process_monitor.get_corresponding_poline(pol_number_s)
-    if pol_number_d is None:
-        copy_poline(i)
-
-    # The corresponding MMS ID in the destination IZ should exist now
-    mms_id_d = process_monitor.get_corresponding_mms_id(mms_id_s)
-    pol_number_d, pol_purchase_type = process_monitor.get_corresponding_poline(pol_number_s)
-
-    # If the destination PoLine number or MMS ID is None, we cannot proceed
-    if mms_id_d is None or pol_number_d is None:
-        return None
-
-    if process_monitor.get_corresponding_holding_id(holding_id_s) is None:
-        # Copy data from the source holding from to the destination IZ
-        holdings.copy_holding_data(mms_id_s, holding_id_s, mms_id_d)
-
-    # Check if the holding could be retrieved
-    holding_id_d = process_monitor.get_corresponding_holding_id(holding_id_s)
-    if holding_id_d is None:
-        return None
-
-    if pd.isna(item_id_s):
-        # If the item ID is NaN, we skip the item processing
-        logging.warning(f"Item ID is NaN for row {i}, skipping item processing.")
-        process_monitor.df.at[i, 'Copied'] = True
-        process_monitor.save()
-        return None
-
-    # Copy the source item into the destination IZ
-    items.copy_item_to_the_destination_iz(i, poline=True)

@@ -5,8 +5,10 @@ from utils.processmonitoring import ProcessMonitor
 
 import logging
 
+config = xlstools.get_config()
 
-def copy_bib_from_nz_to_dest_iz(iz_mms_id_s: str) -> Optional[str]:
+
+def copy_bib_from_nz_to_dest_iz(iz_mms_id_s: str) -> Optional[IzBib]:
     """
     Copies a bib record from the NZ to the destination IZ, using the source IZ MMS ID.
 
@@ -21,14 +23,7 @@ def copy_bib_from_nz_to_dest_iz(iz_mms_id_s: str) -> Optional[str]:
         The MMS ID of the copied bib in the destination IZ, or None if an error occurs.
     """
 
-    config = xlstools.get_config()
     process_monitor = ProcessMonitor()
-    mms_id_d = process_monitor.get_corresponding_mms_id(iz_mms_id_s)
-
-    # Case if we don't have a destination known MMS ID
-    if mms_id_d is not None:
-        logging.warning(f"{iz_mms_id_s}: MMS ID {mms_id_d} already exists in destination IZ {config['iz_d']}.")
-        return mms_id_d
 
     # We fetch source IZ Bib to get the NZ MMS ID
     iz_bib_s = IzBib(iz_mms_id_s, zone=config['iz_s'], env=config['env'])
@@ -56,25 +51,4 @@ def copy_bib_from_nz_to_dest_iz(iz_mms_id_s: str) -> Optional[str]:
     process_monitor.set_corresponding_mms_id(iz_mms_id_s, iz_mms_id_d)
     process_monitor.save()
 
-    return iz_mms_id_d
-
-
-
-
-
-
-
-
-
-
-    nz_bib = NzBib(nz_mms_id, zone=iz_zone, env=env)
-    if nz_bib.error:
-        logging.error(f"Error fetching NZ Bib with MMS ID {nz_mms_id}: {nz_bib.error_msg}")
-        return None
-
-    iz_bib = IzBib(nz_mms_id, zone=iz_zone, env=env, from_nz_mms_id=True)
-    if iz_bib.error:
-        logging.error(f"Error copying Bib to IZ with MMS ID {nz_mms_id}: {iz_bib.error_mmsg}")
-        return None
-
-    return iz_bib
+    return iz_bib_d

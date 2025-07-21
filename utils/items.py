@@ -8,7 +8,54 @@ from lxml import etree
 
 import logging
 
-def copy_item_to_the_destination_iz(i, poline: Optional[bool]) -> None:
+config = xlstools.get_config()
+
+
+def get_source_item(i: int) -> Item:
+    """
+    Retrieves the source item based on the index provided in the DataFrame.
+
+    Parameters
+    ----------
+    i : int
+        The index of the row to process in the DataFrame.
+
+    Returns
+    -------
+    Item
+        The source item object.
+    """
+    process_monitor = ProcessMonitor()
+
+    barcode = process_monitor.df.at[i, 'Barcode']
+
+    item_s = Item(barcode=barcode, zone=config['iz_s'], env=config['env'])
+
+    _ = item_s.data
+    if item_s.error:
+        # check if item already exists in the destination
+        item_d_test = Item(barcode=barcode, zone=config['iz_d'], env=config['env'])
+        item_s_test = Item(barcode='OLD_' + barcode, zone=config['iz_s'], env=config['env'])
+
+        # Test if the item exists in the destination IZ and if the source record's barcode has already been updated
+        if item_d_test.error is False and item_s_test.error is False:
+            error_label = 'Item exists in the dest IZ and barcode of source record updated'
+
+        elif item_d_test.error is False:
+            error_label = 'Barcode already exists in the destination IZ'
+
+        else:
+            error_label = 'Source Item not found'
+
+        logging.error(f"{repr(item_s)}: {item_s.error_msg}")
+        process_monitor.df.at[i, 'Error'] = error_label
+        process_monitor.save()
+        return None
+
+    return item_s
+
+
+def copy_item_to_destination_iz(i, poline: Optional[bool] = None) -> None:
     """
     Copies an item from the source IZ to the destination IZ based on the provided index and configuration.
     This function retrieves the source item, updates its library and location according to the destination IZ,
@@ -27,7 +74,6 @@ def copy_item_to_the_destination_iz(i, poline: Optional[bool]) -> None:
     None
     """
     # Load configuration and initialize process monitor
-    config = xlstools.get_config()
     process_monitor = ProcessMonitor()
 
     # Get the source and destination MMS IDs
@@ -71,8 +117,17 @@ def copy_item_to_the_destination_iz(i, poline: Optional[bool]) -> None:
 
     if poline:
         item_data.find('.//item_data/po_line').text = pol_number_d
+
         arrival_date = item_data.find('.//arrival_date')
-        received = False if arrival_date is None else True
+        expected_arrival_date = item_data.find('.//expected_arrival_date')
+        process_type = item_data.find('.//process_type')
+
+        # Determine if the item is received based on the arrival date and expected arrival date
+        if arrival_date is None and expected_arrival_date is not None and process_type.text == 'ACQ':
+            received = False
+        else:
+            received = True
+
         process_monitor.df.at[i, 'Received'] = received
         process_monitor.save()
 
@@ -126,8 +181,6 @@ def clean_item_fields(item_data: etree.Element, rec_loc: str, retry=False) -> et
         The cleaned item data.
     """
     # Load configuration
-    config = xlstools.get_config()
-
     fields_to_remove = deepcopy(config['items_fields'][rec_loc]['to_delete'])
 
     if retry:
@@ -137,6 +190,8 @@ def clean_item_fields(item_data: etree.Element, rec_loc: str, retry=False) -> et
         field_element = item_data.find(f".//{field}")
 
         if field_element is not None:
+            if retry:
+                logging.warning(f'Item {item_data.find(".//barcode")}: delete field {field}: "{field_element.text}"')
             field_element.getparent().remove(field_element)
 
     return item_data
@@ -154,11 +209,6 @@ def update_source_item(item_s: Item) -> None:
     -------
     None
     """
-
-    # # Load configuration and initialize process monitor
-    config = xlstools.get_config()
-    process_monitor = ProcessMonitor()
-
     # Change barcode of source item
     if item_s.barcode.startswith('OLD_'):
         # Skip this step if barcode already updated
@@ -169,3 +219,4 @@ def update_source_item(item_s: Item) -> None:
     item_s.barcode = 'OLD_' + item_s.barcode
 
     item_s.update()
+

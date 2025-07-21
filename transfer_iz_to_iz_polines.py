@@ -18,8 +18,7 @@ from almapiwrapper.configlog import config_log
 from almapiwrapper.inventory import IzBib, Holding, Item
 from almapiwrapper.acquisitions import POLine, Vendor, Invoice, fetch_invoices
 
-from utils import xlstools, utils, polines
-from utils.processmonitoring import ProcessMonitor
+from utils import xlstools, utils
 
 # Check if the correct number of arguments is provided
 if len(sys.argv) != 2:
@@ -46,13 +45,17 @@ elif version != EXCEL_FORM_VERSION:
 # load configuration
 xlstools.set_config(excel_filepath)
 
+#  import other necessary modules
+from utils import processes
+from utils.processmonitoring import ProcessMonitor
+
 # Initialize process monitor
 process_monitor = ProcessMonitor(excel_filepath, 'PoLines')
 
 # Iterate over the PoLine numbers
 for i in process_monitor.df.index:
     logging.info(f"Processing row {i} / {len(process_monitor.df.index)}: PoLine number: {process_monitor.df.at[i, 'PoLine_s']}")
-    polines.process(i)
+    processes.poline(i)
 
 logging.info('PoLines transfer from IZ to IZ terminated')
 
