@@ -31,7 +31,7 @@ excel_filepath = sys.argv[1]
 log_filename = utils.get_raw_filename(excel_filepath)
 config_log(log_filename)
 
-logging.info(f'PoLines transfer from IZ to IZ started: {excel_filepath}')
+logging.info(f'Items transfer from IZ to IZ started: {excel_filepath}')
 
 # Check version of the Excel form
 version = xlstools.get_form_version(excel_filepath)
