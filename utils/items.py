@@ -224,10 +224,21 @@ def update_source_item(item_s: Item) -> Optional[Item]:
     item_s.save()
     item_s.barcode = 'OLD_' + item_s.barcode
 
+    item_s.data = clean_item_fields(item_s.data, rec_loc='src', retry=False)
+
     item_s = item_s.update()
 
+    # Retry updating the source item if it failed
     if item_s.error:
         logging.error(f"{repr(item_s)}: failed to update barcode of source record: {item_s.error_msg}")
-        return None
+
+        item_s.error = False
+        item_s.error_msg = None
+        item_s.data = clean_item_fields(item_s.data, rec_loc='src', retry=True)
+        item_s = item_s.update()
+
+        if item_s.error:
+            logging.error(f"{repr(item_s)}: failed to update barcode of source record (retry): {item_s.error_msg}")
+            return None
 
     return item_s
