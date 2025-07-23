@@ -55,7 +55,7 @@ def get_source_item(i: int) -> Item:
     return item_s
 
 
-def copy_item_to_destination_iz(i, poline: Optional[bool] = None) -> None:
+def copy_item_to_destination_iz(i, poline: Optional[bool] = None) -> Optional[Item]:
     """
     Copies an item from the source IZ to the destination IZ based on the provided index and configuration.
     This function retrieves the source item, updates its library and location according to the destination IZ,
@@ -71,7 +71,8 @@ def copy_item_to_destination_iz(i, poline: Optional[bool] = None) -> None:
 
     Returns
     -------
-    None
+    Optional[Item]
+        The newly created item in the destination IZ, or None if an error occurs.
     """
     # Load configuration and initialize process monitor
     process_monitor = ProcessMonitor()
@@ -86,6 +87,8 @@ def copy_item_to_destination_iz(i, poline: Optional[bool] = None) -> None:
 
     # Fetch the source item
     item_id_s = process_monitor.df.at[i, 'Item_id_s']
+
+    pol_number_d = None
 
     # fetch the source and destination poline
     if poline:
@@ -159,6 +162,8 @@ def copy_item_to_destination_iz(i, poline: Optional[bool] = None) -> None:
         process_monitor.df.at[i, 'Error'] = 'Failed to update source item barcode'
         return None
 
+    return item_d
+
 
 def clean_item_fields(item_data: etree.Element, rec_loc: str, retry=False) -> etree.Element:
     """
@@ -191,32 +196,38 @@ def clean_item_fields(item_data: etree.Element, rec_loc: str, retry=False) -> et
 
         if field_element is not None:
             if retry:
-                logging.warning(f'Item {item_data.find(".//barcode")}: delete field {field}: "{field_element.text}"')
+                logging.warning(f'Item {item_data.find(".//barcode").text}: delete field "{field}": "{field_element.text}"')
             field_element.getparent().remove(field_element)
 
     return item_data
 
-def update_source_item(item_s: Item) -> None:
+def update_source_item(item_s: Item) -> Optional[Item]:
     """
     Updates the source item by removing the 'OLD_' prefix from the barcode.
 
     Parameters
     ----------
-    i : int
-        The index of the row to process in the DataFrame.
+    item_s : Item
+        The source item to update.
 
     Returns
     -------
-    None
+    Item
+        The updated source item with the new barcode.
     """
     # Change barcode of source item
     if item_s.barcode.startswith('OLD_'):
         # Skip this step if barcode already updated
         logging.warning(f'{repr(item_s)}: barcode already updated "{item_s.barcode}"')
-        return
+        return None
 
     item_s.save()
     item_s.barcode = 'OLD_' + item_s.barcode
 
-    item_s.update()
+    item_s = item_s.update()
 
+    if item_s.error:
+        logging.error(f"{repr(item_s)}: failed to update barcode of source record: {item_s.error_msg}")
+        return None
+
+    return item_s

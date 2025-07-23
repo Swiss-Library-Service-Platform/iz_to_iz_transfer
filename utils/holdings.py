@@ -9,6 +9,45 @@ import logging
 
 config = xlstools.get_config()
 
+
+def get_source_holding(i: int) -> Item:
+    """
+    Retrieves the source item based on the index provided in the DataFrame.
+
+    Parameters
+    ----------
+    i : int
+        The index of the row to process in the DataFrame.
+
+    Returns
+    -------
+    Item
+        The source item object.
+    """
+    process_monitor = ProcessMonitor()
+
+    mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
+    holding_id_s = process_monitor.df.at[i, 'Holding_id_s']
+
+    holding_s = Holding(mms_id_s, holding_id_s, zone=config['iz_s'], env=config['env'])
+
+    _ = holding_s.data
+
+    if holding_s.error:
+        logging.error(f"{repr(holding_s)}: {holding_s.error_msg}")
+        process_monitor.df.loc[process_monitor.df['MMS_id_s'] == mms_id_s, 'Error'] = 'Source Holding not found'
+        return None
+
+    # From the source holding, we get the library and location of the destination IZ according to the mapping
+    library_d, location_d = xlstools.get_corresponding_location(holding_s.library, holding_s.location)
+    if library_d is None or location_d is None:
+        logging.error(f"{repr(holding_s)}: Library or location not found in destination IZ")
+        process_monitor.df.loc[process_monitor.df['MMS_id_s'] == mms_id_s, 'Error'] = 'Library or location not found in destination IZ'
+        return None
+
+    return holding_s
+
+
 def copy_holding_data(mms_id_s: str, holding_id_s: str, mms_id_d: str) -> None:
     """
     Copies holding data from the source IZ to the destination IZ.
@@ -103,20 +142,22 @@ def copy_holding_data(mms_id_s: str, holding_id_s: str, mms_id_d: str) -> None:
     process_monitor.save()
 
 
-def copy_holding_to_destination_iz(i: int, bib_d: Item) -> None:
+def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Holding:
     """
-    Copies a holding from the source IZ to the destination IZ.
+    Copies holding data from the source IZ to the destination IZ.
 
     Parameters
     ----------
     i : int
-        The index of the row in the process monitor DataFrame to process.
+        The index of the row in the process monitor DataFrame.
+    bib_d : IzBib
+        The destination IZ Bib object. If None, it will be created based on the corresponding MMS ID.
 
     Returns
     -------
-    None
+    Holding
+        The holding object in the destination IZ.
     """
-
     process_monitor = ProcessMonitor()
 
     # Retrieve the source holding and its details

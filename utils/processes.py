@@ -119,10 +119,48 @@ def item(i: int) -> None:
     # ------------
     if process_monitor.get_corresponding_holding_id(holding_id_s) is None:
         # Copy the holding data from the source to the destination IZ
-        holding_d = holdings.copy_holding_to_destination_iz(i, bib_d)
+        _ = holdings.copy_holding_to_destination_iz(i, bib_d)
 
     # -------------
     # Copy the item
     # -------------
-    items.copy_item_to_destination_iz(i)
+    _ = items.copy_item_to_destination_iz(i)
 
+    return None
+
+
+def holding(i: int) -> None:
+    """
+    Processes all items in the process monitor DataFrame.
+
+    This function iterates through each row in the process monitor DataFrame,
+    checks if the item has already been copied, and if not, processes it.
+    """
+    process_monitor = ProcessMonitor()
+
+    if process_monitor.df.at[i, 'Copied']:
+        # If the row is already copied, we skip it
+        return None
+
+    # --------
+    # Copy bib
+    # --------
+    iz_mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
+    holding_id_s = process_monitor.df.at[i, 'Holding_id_s']
+    bib_d = None
+    mms_id_d = process_monitor.get_corresponding_mms_id(iz_mms_id_s)
+
+    # Case if we don't have a destination known MMS ID
+    if mms_id_d is None:
+        bib_d = bibs.copy_bib_from_nz_to_dest_iz(iz_mms_id_s)
+
+        if bib_d is None:
+            # If the destination bib could not be created, we skip the row
+            return None
+
+    # ------------
+    # Copy holding
+    # ------------
+    if process_monitor.get_corresponding_holding_id(holding_id_s) is None:
+        # Copy the holding data from the source to the destination IZ
+        _ = holdings.copy_holding_to_destination_iz(i, bib_d)
