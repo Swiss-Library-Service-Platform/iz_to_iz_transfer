@@ -78,8 +78,10 @@ def set_config(excel_filepath: str):
         'env': {'Production': 'P', 'Sandbox': 'S'}.get(sheet.cell(row=10, column=2).value, 'P'),
         'acq_department': sheet.cell(row=11, column=2).value,
         'make_reception': True if sheet.cell(row=12, column=2).value == 'Yes' else False,
+        'interested_users': [],
         'items_fields': {'src': {'to_delete': [], 'to_delete_if_error': []},
-        'dest': {'to_delete': [], 'to_delete_if_error': []}}
+        'dest': {'to_delete': [], 'to_delete_if_error': []}},
+        'polines_fields': {'to_delete': [], 'to_delete_if_error': []}
     }
 
     # Read items fields to delete from the Excel sheet
@@ -97,6 +99,17 @@ def set_config(excel_filepath: str):
             config['items_fields']['dest']['to_delete'] += key.split(', ')
         elif value_dest == 'Delete if error':
             config['items_fields']['dest']['to_delete_if_error'] += key.split(', ')
+
+    # Read polines fields to delete from the Excel sheet
+    for i in range(24, 25):
+        key = sheet.cell(row=i, column=1).value
+        value = sheet.cell(row=i, column=3).value
+
+        if value == 'Always delete':
+            config['polines_fields']['to_delete'] += key.split(', ')
+        elif value == 'Delete if error':
+            config['polines_fields']['to_delete_if_error'] += key.split(', ')
+
 
     # Get Locations_mapping tab information
     config['locations_mapping'] = pd.read_excel(excel_filepath, sheet_name='Locations_mapping', dtype=str)

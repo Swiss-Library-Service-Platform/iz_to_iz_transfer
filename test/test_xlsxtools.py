@@ -21,6 +21,7 @@ class TestXlsTools(unittest.TestCase):
         self.assertEqual(xlstools.get_config().get('acq_department'), 'DEFAULT_CIRC_DESK-AcqWorkOrder')
         self.assertEqual(xlstools.get_config().get('make_reception'), False)
         self.assertEqual(xlstools.get_config().get('items_fields'), {'src': {'to_delete': ['temp_location', 'temp_library', 'in_temp_location'], 'to_delete_if_error': ['provenance', 'pattern_type', 'statistics_note_1', 'statistics_note_2', 'statistics_note_3']}, 'dest': {'to_delete': ['temp_location', 'temp_library', 'in_temp_location'], 'to_delete_if_error': ['provenance', 'statistics_note_1', 'statistics_note_2', 'statistics_note_3']}})
+        self.assertEqual(xlstools.get_config().get('polines_fields'), {'to_delete': [], 'to_delete_if_error': ['interested_user']})
         self.assertIn('vendors_mapping', xlstools.get_config())
         self.assertEqual(xlstools.get_config()['locations_mapping'].iloc[0, 0], '*DEFAULT*')
 

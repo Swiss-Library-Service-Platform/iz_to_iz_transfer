@@ -1,10 +1,12 @@
 import logging
 from copy import deepcopy
 
+from transfer_iz_to_iz_holdings import process_monitor
 from utils.processmonitoring import ProcessMonitor
 from utils import bibs, holdings, items, xlstools
 
 from almapiwrapper.acquisitions import POLine, Vendor, Invoice, fetch_invoices
+from almapiwrapper.users import User
 
 from typing import Optional
 
@@ -135,6 +137,15 @@ def copy_poline(i: int) -> Optional[POLine]:
     # PO Line number will change in the new IZ, we keep the old one in the additional_order_reference field
     pol_data['additional_order_reference'] = pol_s.pol_number
     pol_data['po_number'] = ''
+
+    # Check interested users
+    pol_data = handle_interested_users(pol_data)
+    if pol_data is None:
+        process_monitor.df.at[i, 'Error'] = 'Interested user not found'
+        process_monitor.save()
+        return None
+
+
     # ---------------------
     # Create the new PoLine
     # ---------------------
@@ -153,3 +164,36 @@ def copy_poline(i: int) -> Optional[POLine]:
     process_monitor.save()
 
     return pol_d
+
+
+def handle_interested_users(pol_data: dict) -> Optional[dict]:
+    """
+    Handle interested users for the PoLine.
+
+    Parameters
+    ----------
+    pol_data : dict
+        The PoLine data dictionary.
+    """
+    interested_users = []
+    if ('interested_user' in pol_data and
+        pol_data['interested_user'] and
+        'interested_user' not in config['polines_fields']['to_delete']):
+
+        for interested_user in pol_data['interested_user']:
+            primary_id = interested_user['primary_id']
+            if primary_id not in config['interested_users']:
+                user = User(primary_id, zone=config['iz_d'], env=config['env'])
+                _ = user.data
+                if user.error:
+                    if 'interested_user' in config['polines_fields']['to_delete_if_error']:
+                        logging.warning(f"{repr(user)}: interested user not found, skipping: {user.error_msg}")
+                        continue
+                    else:
+                        logging.error(f"{repr(user)}: interested user not found")
+                        return None
+            config['interested_users'].append(primary_id)
+            interested_users.append(deepcopy(interested_user))
+
+    pol_data['interested_users'] = interested_users
+    return pol_data
