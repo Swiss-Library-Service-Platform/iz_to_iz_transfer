@@ -1,7 +1,6 @@
 import logging
 from copy import deepcopy
 
-from transfer_iz_to_iz_holdings import process_monitor
 from utils.processmonitoring import ProcessMonitor
 from utils import bibs, holdings, items, xlstools
 
