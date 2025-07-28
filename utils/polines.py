@@ -4,14 +4,14 @@ from copy import deepcopy
 from utils.processmonitoring import ProcessMonitor
 from utils import bibs, holdings, items, xlstools
 
-import pandas as pd
-
 from almapiwrapper.acquisitions import POLine, Vendor, Invoice, fetch_invoices
+
+from typing import Optional
 
 config = xlstools.get_config()
 
 
-def copy_poline(i: int) -> None:
+def copy_poline(i: int) -> Optional[POLine]:
     """
     Copies a PoLine from the source to the destination based on the provided index and configuration.
 
@@ -72,6 +72,7 @@ def copy_poline(i: int) -> None:
     for loc in pol_data['location']:
         library_s = loc['library']['value']
         location_s = loc['shelving_location']
+        quantity = 1 if pol_purchase_type.endswith('_CO') else loc['quantity']
         library_d, location_d = xlstools.get_corresponding_location(library_s, location_s)
         if library_d is None or location_d is None:
             logging.error(f"{repr(pol_s)}: Location not found in mapping for library {library_s} and location {location_s}.")
@@ -80,12 +81,14 @@ def copy_poline(i: int) -> None:
             return None
 
         locations.append({
-            "quantity": 1,
+            "quantity": quantity,
             "library": {"value": library_d},
             "shelving_location": location_d
         })
-
     pol_data['location'] = locations
+
+    if pol_purchase_type.endswith('_OT'):
+        pol_data['acquisition_method']['value'] = 'TECHNICAL'
 
     # Remove all alerts
     pol_data['alert'] = []
@@ -113,7 +116,7 @@ def copy_poline(i: int) -> None:
             return None
 
         fund['fund_code']['value'] = fund_code_d
-        fund['amount']['currency']['value'] = 'CHF'
+        # fund['amount']['currency']['value'] = 'CHF'
 
 
     # Update vendor code and vendor account
@@ -131,7 +134,7 @@ def copy_poline(i: int) -> None:
 
     # PO Line number will change in the new IZ, we keep the old one in the additional_order_reference field
     pol_data['additional_order_reference'] = pol_s.pol_number
-
+    pol_data['po_number'] = ''
     # ---------------------
     # Create the new PoLine
     # ---------------------
@@ -148,3 +151,5 @@ def copy_poline(i: int) -> None:
     # Update the process monitor with the new PoLine number
     process_monitor.set_corresponding_poline(pol_number_s, pol_d.pol_number, pol_purchase_type)
     process_monitor.save()
+
+    return pol_d

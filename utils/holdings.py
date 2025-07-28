@@ -12,7 +12,7 @@ config = xlstools.get_config()
 
 def get_source_holding(i: int) -> Item:
     """
-    Retrieves the source item based on the index provided in the DataFrame.
+    Retrieves the source holding based on the index provided in the DataFrame.
 
     Parameters
     ----------
@@ -36,6 +36,7 @@ def get_source_holding(i: int) -> Item:
     if holding_s.error:
         logging.error(f"{repr(holding_s)}: {holding_s.error_msg}")
         process_monitor.df.loc[process_monitor.df['MMS_id_s'] == mms_id_s, 'Error'] = 'Source Holding not found'
+        process_monitor.save()
         return None
 
     # From the source holding, we get the library and location of the destination IZ according to the mapping
@@ -48,34 +49,28 @@ def get_source_holding(i: int) -> Item:
     return holding_s
 
 
-def copy_holding_data(mms_id_s: str, holding_id_s: str, mms_id_d: str) -> None:
+def copy_holding_data(i: int, holding_s: Holding) -> Optional[Holding]:
     """
     Copies holding data from the source IZ to the destination IZ.
 
     Parameters
     ----------
-    mms_id_s : str
-        The MMS ID of the bib in the source IZ.
-    holding_id_s : str
-        The holding ID in the source IZ.
+    holding_s : Holding
+        The source holding object containing the data to be copied.
     mms_id_d : str
         The MMS ID of the bib in the destination IZ.
 
     Returns
     -------
-    None
+    Optional[Holding]
+        The holding object in the destination IZ, or None if an error occurs.
     """
 
     # Load configuration and initialize process monitor
     process_monitor = ProcessMonitor()
-
-    # Fetch the source holding
-    holding_s = Holding(mms_id_s, holding_id_s, zone=config['iz_s'], env=config['env'])
-
-    if holding_s.error:
-        logging.error(f"{repr(holding_s)}: {holding_s.error_msg}")
-        process_monitor.df.loc[process_monitor.df['MMS_id_s'] == mms_id_s, 'Error'] = 'Source Holding not found'
-        return None
+    mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
+    mms_id_d = process_monitor.get_corresponding_mms_id(mms_id_s)
+    holding_id_s = process_monitor.df.at[i, 'Holding_id_s']
 
     # From the source holding, we get the library and location of the destination IZ according to the mapping
     library_d, location_d = xlstools.get_corresponding_location(holding_s.library, holding_s.location)
@@ -140,6 +135,8 @@ def copy_holding_data(mms_id_s: str, holding_id_s: str, mms_id_d: str) -> None:
     # Update the process monitor with the new holding ID
     process_monitor.set_corresponding_holding_id(holding_id_s, holding_d.holding_id)
     process_monitor.save()
+
+    return holding_d
 
 
 def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Holding:

@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple
 
 import pandas as pd
 
-from utils import utils
+from utils import xlstools
 
 
 class ProcessMonitor:
@@ -83,7 +83,7 @@ class ProcessMonitor:
         str
             Path to the process file.
         """
-        return f'data/{utils.get_raw_filename(excel_filepath)}_{self.process_type}_processing.csv'
+        return f'data/{xlstools.get_raw_filename(excel_filepath)}_{self.process_type}_processing.csv'
 
     def get_columns(self) -> List[str]:
         """
@@ -202,7 +202,7 @@ class ProcessMonitor:
         if len(result) > 0:
             poline_d = result['PoLine_d'].values[0]
             purchase_type = result['Purchase_type'].values[0]
-            if pd.isna(poline_d):
+            if pd.isnull(poline_d):
                 return None, None
             return poline_d, purchase_type
         else:
@@ -224,7 +224,7 @@ class ProcessMonitor:
         """
         result = self.df.loc[self.df['MMS_id_s'] == mms_id, 'MMS_id_d']
         value = result.values[0] if len(result) > 0 else None
-        return None if pd.isna(value) else value
+        return None if pd.isnull(value) else value
 
     def get_corresponding_holding_id(self, holding_id: str) -> Optional[str]:
         """
@@ -243,7 +243,7 @@ class ProcessMonitor:
 
         result = self.df.loc[self.df['Holding_id_s'] == holding_id, 'Holding_id_d']
         value = result.values[0] if len(result) > 0 else None
-        return None if pd.isna(value) else value
+        return None if pd.isnull(value) else value
 
     def get_corresponding_item_id(self, item_id: str) -> Optional[str]:
         """
@@ -262,7 +262,7 @@ class ProcessMonitor:
 
         result = self.df.loc[self.df['Item_id_s'] == item_id, 'Item_id_d']
         value = result.values[0] if len(result) > 0 else None
-        return None if pd.isna(value) else value
+        return None if pd.isnull(value) else value
 
     def set_corresponding_poline(self, pol_number: str, poline_d: str, purchase_type: str) -> None:
         """

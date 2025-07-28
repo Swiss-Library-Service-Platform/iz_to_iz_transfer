@@ -18,6 +18,8 @@ class TestXlsTools(unittest.TestCase):
         self.assertEqual(xlstools.get_config().get('iz_s'), 'UBS')
         self.assertEqual(xlstools.get_config().get('iz_d'), 'ISR')
         self.assertEqual(xlstools.get_config().get('env'), 'S')
+        self.assertEqual(xlstools.get_config().get('acq_department'), 'DEFAULT_CIRC_DESK-AcqWorkOrder')
+        self.assertEqual(xlstools.get_config().get('make_reception'), False)
         self.assertEqual(xlstools.get_config().get('items_fields'), {'src': {'to_delete': ['temp_location', 'temp_library', 'in_temp_location'], 'to_delete_if_error': ['provenance', 'pattern_type', 'statistics_note_1', 'statistics_note_2', 'statistics_note_3']}, 'dest': {'to_delete': ['temp_location', 'temp_library', 'in_temp_location'], 'to_delete_if_error': ['provenance', 'statistics_note_1', 'statistics_note_2', 'statistics_note_3']}})
         self.assertIn('vendors_mapping', xlstools.get_config())
         self.assertEqual(xlstools.get_config()['locations_mapping'].iloc[0, 0], '*DEFAULT*')
@@ -56,8 +58,8 @@ class TestXlsTools(unittest.TestCase):
         self.assertEqual(vendor_account, '000007023')
 
         vendor, vendor_account = xlstools.get_corresponding_vendor('A100-1044', 'zzzzzzz')
-        self.assertEqual(vendor, 'h000007024')
-        self.assertEqual(vendor_account, '000007024')
+        self.assertEqual(vendor, '000000015')
+        self.assertEqual(vendor_account, '000000015')
 
         vendor, vendor_account = xlstools.get_corresponding_vendor('A100-1045', 'zzzzzzz')
         self.assertIsNone(vendor)
@@ -68,6 +70,19 @@ class TestXlsTools(unittest.TestCase):
         xlstools.set_config(excel_path)
         fund = xlstools.get_corresponding_fund('test')
         self.assertEqual(fund, 'Fundforall')
+
+    def test_create_log_filename(self):
+        test_cases = [
+            ("log.txt", "log"),
+            ("C:\\Users\\user\\log.txt", "log"),
+            ("/home/user/log.txt", "log"),
+            ("archive.tar.gz", "archive.tar"),
+            ("folder/subfolder/file.log", "file"),
+            ("file", "file"),
+        ]
+        for input_path, expected in test_cases:
+            with self.subTest(input_path=input_path):
+                self.assertEqual(xlstools.get_raw_filename(input_path), expected)
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,17 +1,19 @@
 from typing import Optional
 from almapiwrapper.inventory import IzBib, NzBib, Holding, Item, Collection
+from almapiwrapper.acquisitions import POLine
 
 from utils import xlstools
 from utils.processmonitoring import ProcessMonitor
 from copy import deepcopy
 from lxml import etree
+import pandas as pd
 
 import logging
 
 config = xlstools.get_config()
 
 
-def get_source_item(i: int) -> Item:
+def get_source_item_using_barcode(i: int) -> Item:
     """
     Retrieves the source item based on the index provided in the DataFrame.
 
@@ -242,3 +244,170 @@ def update_source_item(item_s: Item) -> Optional[Item]:
             return None
 
     return item_s
+
+
+def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, pol_d: POLine) -> Optional[Item]:
+    """
+    Retrieves the destination item from the holding based on the index provided in the DataFrame.
+
+    Parameters
+    ----------
+    i : int
+        The index of the row to process in the DataFrame.
+    holding_s : Holding
+        The source holding object from which to retrieve the item.
+    holding_d : Holding
+        The holding object from which to retrieve the item.
+    pol_d : POLine
+        The destination PoLine object associated with the item.
+
+    Returns
+    -------
+    Optional[Item]
+        The destination item object, or None if not found.
+    """
+    process_monitor = ProcessMonitor()
+    item_id_s = process_monitor.df.at[i, 'Item_id_s']
+
+    items_s = holding_s.get_items()
+    items_d = holding_d.get_items()
+
+
+    # get item rank in source holding
+    index = next((i for i, item in enumerate(items_s) if item.item_id == item_id_s), -1)
+
+    if index == -1:
+        # No matching item found in source holding
+        logging.error(f"Item with ID {item_id_s} not found in source holding {holding_s.holding_id}")
+        process_monitor.df.at[i, 'Error'] = 'Item not found in source holding'
+        process_monitor.save()
+        return None
+    elif index >= len(items_d):
+        # Not enough items in destination holding to match source item
+        logging.error(f"Not enough items in destination holding {holding_s.holding_id} to match source item {item_id_s}")
+        process_monitor.df.at[i, 'Error'] = 'Not enough items in destination holding'
+        process_monitor.save()
+        return None
+
+    item_s = items_s[index]
+    item_d = items_d[index]
+
+    for field in item_s.data.find('.//item_data'):
+        # Copy only specific fields from source item to destination item
+        if (field.tag in ['pid', 'po_line', 'creation_date', 'modification_date', 'base_status',
+                          'awaiting_reshelving', 'library', 'location', 'arrival_date'] or
+                item_d.data.find(f'.//item_data/{field.tag}') is None or
+                item_s.data.find(f'.//item_data/{field.tag}') is None):
+            continue
+        item_d.data.find(f'.//item_data/{field.tag}').text = item_s.data.find(
+            f'.//item_data/{field.tag}').text
+    item_d = item_d.update()
+
+    if item_d.error:
+        logging.error(f"{repr(item_d)}: {item_d.error_msg}")
+        process_monitor.df.at[i, 'Error'] = 'Failed to update destination item'
+        process_monitor.save()
+        return None
+
+    # Get the arrival date and expected arrival date from the source item
+    arrival_date = item_d.data.find('.//arrival_date')
+    expected_arrival_date = item_d.data.find('.//expected_arrival_date')
+    process_type = item_d.data.find('.//process_type')
+
+    # Determine if the item is received based on the arrival date and expected arrival date
+    if arrival_date is None and expected_arrival_date is not None and process_type.text == 'ACQ':
+        received = False
+    else:
+        received = True
+
+    process_monitor.df.at[i, 'Received'] = received
+    process_monitor.set_corresponding_item_id(item_s.item_id, item_d.item_id)
+    if received is False:
+        process_monitor.df.at[i, 'Copied'] = True
+    process_monitor.save()
+
+    update_source_item(item_s)
+
+    if item_s.error:
+        logging.error(f"{repr(item_s)}: failed to update barcode of source record: {item_s.error_msg}")
+        process_monitor.df.at[i, 'Error'] = 'Failed to update source item barcode'
+        return None
+
+    return item_d
+
+
+def make_reception(i) -> Optional[POLine]:
+    """
+    Makes a reception for the item based on the index provided in the DataFrame.
+
+    Parameters
+    ----------
+    i : int
+        The index of the row to process in the DataFrame.
+    pol_d : Optional[POLine]
+        The destination PoLine object associated with the item.
+
+    Returns
+    -------
+    Optional[Item]
+        The item that was received, or None if an error occurs.
+    """
+    process_monitor = ProcessMonitor()
+    pol_number_s = process_monitor.df.at[i, 'PoLine_s']
+    item_id_s = process_monitor.df.at[i, 'Item_id_s']
+    holding_id_s = process_monitor.df.at[i, 'Holding_id_s']
+    mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
+    item_id_d = process_monitor.get_corresponding_item_id(item_id_s)
+    holding_id_d = process_monitor.get_corresponding_holding_id(holding_id_s)
+    mms_id_d = process_monitor.get_corresponding_mms_id(mms_id_s)
+    pol_number_d, pol_purchase_type = process_monitor.get_corresponding_poline(pol_number_s)
+
+    if any([pd.isnull(identifier) for identifier in [item_id_s, holding_id_s, mms_id_s, item_id_d, holding_id_d, mms_id_d, pol_number_s, pol_number_d]]):
+        logging.error('Identifier missing, impossible to make reception')
+        return None
+
+    item_s = Item(mms_id_s, holding_id_s, item_id_s, zone=config['iz_s'], env=config['env'])
+    _ = item_s.data
+
+    if item_s.error:
+        logging.error(f"{repr(item_s)}: {item_s.error_msg}")
+        process_monitor.df.at[i, 'Error'] = 'Source Item not found'
+        process_monitor.save()
+        return None
+
+    item_d = Item(mms_id_d, holding_id_d, item_id_d, zone=config['iz_d'], env=config['env'])
+    _ = item_d.data
+    if item_d.error:
+        logging.error(f"{repr(item_d)}: {item_d.error_msg}")
+        process_monitor.df.at[i, 'Error'] = 'Destination Item not found'
+        process_monitor.save()
+        return None
+
+    pol_d = POLine(pol_number_d, zone=config['iz_d'], env=config['env'])
+    _ = pol_d.data
+    if pol_d.error:
+        logging.error(f"{repr(pol_d)}: {pol_d.error_msg}")
+        process_monitor.df.at[i, 'Error'] = 'Destination PoLine not found'
+        process_monitor.save()
+        return None
+
+    # If the item is received, we set the receive date to the arrival date
+    if item_s.data.find('.//item_data/arrival_date') is not None:
+        arrival_date = item_s.data.find('.//item_data/arrival_date').text
+        acq_department = config['acq_department']
+        if acq_department:
+            pol_d.receive_item(item_d,
+                               receive_date=arrival_date,
+                               library=item_d.library,
+                               department=acq_department)
+        else:
+            pol_d.receive_item(item_d, receive_date=arrival_date)
+
+    if pol_d.error:
+        logging.error(f"{repr(pol_d)}: {pol_d.error_msg}")
+        process_monitor.df.at[i, 'Error'] = 'Failed to receive item in PoLine'
+        process_monitor.save()
+        return None
+
+    process_monitor.df.at[i, 'Copied'] = True
+    process_monitor.save()

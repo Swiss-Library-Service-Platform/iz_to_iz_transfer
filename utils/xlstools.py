@@ -1,10 +1,28 @@
 import openpyxl
 import pandas as pd
+import os
 
 from typing import Tuple, Optional
 
 # Global variable to store process configuration, it is initialized in set_config
 _config_cache = {}
+
+
+def get_raw_filename(filepath: str) -> str:
+    """
+    Extracts the base filename without its extension from a given file path.
+
+    Parameters
+    ----------
+    filepath : str
+        Full or relative path to the file.
+
+    Returns
+    -------
+    str
+        Filename without extension.
+    """
+    return os.path.splitext(os.path.basename(filepath))[0]
 
 
 def get_form_version(excel_filepath: str) -> str:
@@ -58,12 +76,14 @@ def set_config(excel_filepath: str):
         'lib_s': sheet.cell(row=8, column=2).value,
         'lib_d': sheet.cell(row=9, column=2).value,
         'env': {'Production': 'P', 'Sandbox': 'S'}.get(sheet.cell(row=10, column=2).value, 'P'),
+        'acq_department': sheet.cell(row=11, column=2).value,
+        'make_reception': True if sheet.cell(row=12, column=2).value == 'Yes' else False,
         'items_fields': {'src': {'to_delete': [], 'to_delete_if_error': []},
-         'dest': {'to_delete': [], 'to_delete_if_error': []}}
+        'dest': {'to_delete': [], 'to_delete_if_error': []}}
     }
 
     # Read items fields to delete from the Excel sheet
-    for i in range(14, 21):
+    for i in range(15, 22):
         key = sheet.cell(row=i, column=1).value
         value_src = sheet.cell(row=i, column=2).value
         value_dest = sheet.cell(row=i, column=3).value
@@ -233,7 +253,7 @@ def get_corresponding_library(library_s: str) -> Optional[str]:
 #     return item_policy_d
 
 
-def get_corresponding_vendor(vendor_s: str, vendor_account_s: str) -> Optional[Tuple[str, str]]:
+def get_corresponding_vendor(vendor_s: str, vendor_account_s: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Returns the corresponding vendor and vendor account for a given vendor name and vendor account.
 

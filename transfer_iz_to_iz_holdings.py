@@ -18,7 +18,7 @@ from almapiwrapper.configlog import config_log
 from almapiwrapper.inventory import IzBib, Holding, Item
 from almapiwrapper.acquisitions import POLine, Vendor, Invoice, fetch_invoices
 
-from utils import xlstools, utils
+from utils import xlstools
 
 # Check if the correct number of arguments is provided
 if len(sys.argv) != 2:
@@ -28,7 +28,7 @@ if len(sys.argv) != 2:
 excel_filepath = sys.argv[1]
 
 # Logging configuration
-log_filename = utils.get_raw_filename(excel_filepath)
+log_filename = xlstools.get_raw_filename(excel_filepath)
 config_log(log_filename)
 
 logging.info(f'Holdingss transfer from IZ to IZ started: {excel_filepath}')
