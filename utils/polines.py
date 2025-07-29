@@ -89,7 +89,7 @@ def copy_poline(i: int) -> Optional[POLine]:
     pol_data['location'] = locations
 
     if pol_purchase_type.endswith('_OT'):
-        pol_data['acquisition_method']['value'] = 'TECHNICAL'
+        pol_data['acquisition_method']['value'] = 'VENDOR_SYSTEM'
 
     # Remove all alerts
     pol_data['alert'] = []
