@@ -1,8 +1,8 @@
-##############################
-# Transfer IZ to IZ holdings #
-##############################
+##########################
+# Transfer IZ to IZ bibs #
+##########################
 
-# This script transfers holdings from IZ source to IZ destination.
+# This script transfers bib reocrds from IZ source to IZ destination.
 # The information about the transfer should be given in an Excel file
 # This file should be compliant with a given format
 
@@ -22,7 +22,7 @@ from utils import xlstools
 
 # Check if the correct number of arguments is provided
 if len(sys.argv) != 2:
-    print("Usage : python transfer_iz_to_iz_holdings.py <dataForm.xlsx>")
+    print("Usage : python transfer_iz_to_iz_bibs.py <dataForm.xlsx>")
     sys.exit(1)
 
 excel_filepath = sys.argv[1]
@@ -31,7 +31,7 @@ excel_filepath = sys.argv[1]
 log_filename = xlstools.get_raw_filename(excel_filepath)
 config_log(log_filename)
 
-logging.info(f'Holdings transfer from IZ to IZ started: {excel_filepath}')
+logging.info(f'Bib records transfer from IZ to IZ started: {excel_filepath}')
 
 # Check version of the Excel form
 version = xlstools.get_form_version(excel_filepath)
@@ -49,12 +49,12 @@ from utils import processes
 from utils.processmonitoring import ProcessMonitor
 
 # Initialize process monitor
-process_monitor = ProcessMonitor(excel_filepath, 'Holdings')
+process_monitor = ProcessMonitor(excel_filepath, 'Bibs')
 
 # Iterate over the PoLine numbers
 for i in process_monitor.df.index:
-    logging.info(f"Processing row {i} / {len(process_monitor.df.index)}: holding {process_monitor.df.at[i, 'Holding_id_s']}")
-    processes.holding(i)
+    logging.info(f"Processing row {i} / {len(process_monitor.df.index)}: bib record {process_monitor.df.at[i, 'MMS_id_s']}")
+    processes.bib(i)
 
-logging.info('Holdings transfer from IZ to IZ terminated')
+logging.info('Bib records transfer from IZ to IZ terminated')
 

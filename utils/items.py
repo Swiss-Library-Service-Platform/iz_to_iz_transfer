@@ -315,7 +315,7 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, po
     process_type = item_d.data.find('.//process_type')
 
     # Determine if the item is received based on the arrival date and expected arrival date
-    if arrival_date is None and expected_arrival_date is not None and process_type.text == 'ACQ':
+    if arrival_date is None and expected_arrival_date is not None:
         received = False
     else:
         received = True

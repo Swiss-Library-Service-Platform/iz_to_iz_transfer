@@ -101,6 +101,8 @@ class ProcessMonitor:
             return ['Barcode', 'MMS_id_s', 'Holding_id_s', 'Item_id_s', 'MMS_id_d', 'Holding_id_d', 'Item_id_d', 'Copied', 'Error']
         elif self.process_type == 'Holdings':
             return ['MMS_id_s', 'Holding_id_s', 'MMS_id_d', 'Holding_id_d', 'Copied', 'Error']
+        elif self.process_type == 'Bibs':
+            return ['MMS_id_s', 'MMS_id_d', 'Copied', 'Error']
         else:
             logging.critical(f'Unknown process type: {self.process_type}')
             sys.exit(1)

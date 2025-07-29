@@ -229,3 +229,37 @@ def holding(i: int) -> None:
         _ = holdings.copy_holding_to_destination_iz(i, bib_d)
 
     return None
+
+def bib(i: int) -> None:
+    """
+    Processes a single row in the process monitor DataFrame for bib records.
+
+    Parameters
+    ----------
+    i : int
+        The index of the row to process.
+
+    Returns
+    -------
+    None
+    """
+    process_monitor = ProcessMonitor()
+
+    if process_monitor.df.at[i, 'Copied']:
+        # If the row is already copied, we skip it
+        return None
+
+    iz_mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
+
+    # Copy the bib record from the source IZ to the destination IZ
+    bib_d = bibs.copy_bib_from_nz_to_dest_iz(iz_mms_id_s)
+
+    if bib_d is None:
+        # If the destination bib could not be created, we skip the row
+        return None
+
+    # Mark the row as copied
+    process_monitor.df.at[i, 'Copied'] = True
+    process_monitor.save()
+
+    return None
