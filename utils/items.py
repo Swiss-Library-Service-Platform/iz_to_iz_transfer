@@ -276,7 +276,7 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, po
     if len(items_d) == 0:
         # If there are no items we need to wait a few seconds and try again
         time.sleep(3)
-        holding_d = Holding(holding_d.mms_id, holding_d.holding_id, zone=config['iz_d'], env=config['env'])
+        holding_d = Holding(holding_d.bib.mms_id, holding_d.holding_id, zone=config['iz_d'], env=config['env'])
         items_d = holding_d.get_items()
 
     # get item rank in source holding
