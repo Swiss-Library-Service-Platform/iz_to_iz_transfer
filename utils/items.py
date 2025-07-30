@@ -270,7 +270,9 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, po
     process_monitor = ProcessMonitor()
     item_id_s = process_monitor.df.at[i, 'Item_id_s']
 
-    items_s = holding_s.get_items()
+    items_s = [item for item in holding_s.get_items()
+               if item.data.find('.//item_data/po_line') and
+               item.data.find('.//item_data/po_line').text == process_monitor.df.at[i, 'PoLine_s']]
     items_d = holding_d.get_items()
 
     if len(items_d) == 0:
