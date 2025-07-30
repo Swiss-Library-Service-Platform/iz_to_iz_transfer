@@ -194,5 +194,5 @@ def handle_interested_users(pol_data: dict) -> Optional[dict]:
             config['interested_users'].append(primary_id)
             interested_users.append(deepcopy(interested_user))
 
-    pol_data['interested_users'] = interested_users
+    pol_data['interested_user'] = interested_users
     return pol_data

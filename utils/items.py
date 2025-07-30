@@ -1,6 +1,7 @@
 from typing import Optional
 from almapiwrapper.inventory import IzBib, NzBib, Holding, Item, Collection
 from almapiwrapper.acquisitions import POLine
+import time
 
 from utils import xlstools
 from utils.processmonitoring import ProcessMonitor
@@ -272,6 +273,11 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, po
     items_s = holding_s.get_items()
     items_d = holding_d.get_items()
 
+    if len(items_d) == 0:
+        # If there are no items we need to wait a few seconds and try again
+        time.sleep(3)
+        holding_d = Holding(holding_d.mms_id, holding_d.holding_id, zone=config['iz_d'], env=config['env'])
+        items_d = holding_d.get_items()
 
     # get item rank in source holding
     index = next((i for i, item in enumerate(items_s) if item.item_id == item_id_s), -1)
