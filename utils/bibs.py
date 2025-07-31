@@ -37,10 +37,11 @@ def copy_bib_from_nz_to_dest_iz(iz_mms_id_s: str) -> Optional[IzBib]:
     if nz_mms_id is None:
         logging.error(f"{repr(iz_bib_s)}: not linked to the NZ")
         process_monitor.df.loc[process_monitor.df['MMS_id_s'] == iz_mms_id_s, 'Error'] = 'Not linked to the NZ'
-        return None
+        iz_bib_d = IzBib(data=iz_bib_s.data, zone=config['iz_d'], env=config['env'], create_bib=True)
+    else:
+        # We copy the NZ Bib to the destination IZ
+        iz_bib_d = IzBib(nz_mms_id, zone=config['iz_d'], env=config['env'], from_nz_mms_id=True, copy_nz_rec=True)
 
-    # We copy the NZ Bib to the destination IZ
-    iz_bib_d = IzBib(nz_mms_id, zone=config['iz_d'], env=config['env'], from_nz_mms_id=True, copy_nz_rec=True)
     iz_mms_id_d = iz_bib_d.get_mms_id()
 
     if iz_bib_d.error:
