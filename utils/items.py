@@ -334,7 +334,7 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, po
 
     process_monitor.df.at[i, 'Received'] = received
     process_monitor.set_corresponding_item_id(item_s.item_id, item_d.item_id)
-    if received is False:
+    if not received:
         process_monitor.df.at[i, 'Copied'] = True
     process_monitor.save()
 

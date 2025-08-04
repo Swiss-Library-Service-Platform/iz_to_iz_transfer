@@ -24,6 +24,7 @@ def poline(i: int) -> None:
     process_monitor = ProcessMonitor()
     holding_s = None
     pol_d = None
+    holding_d = None
 
     # Check if the row is already copied
     if process_monitor.df.at[i, 'Copied']:
@@ -34,7 +35,6 @@ def poline(i: int) -> None:
     pol_number_s = process_monitor.df.at[i, 'PoLine_s']
     mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
     holding_id_s = process_monitor.df.at[i, 'Holding_id_s']
-    holding_id_d = process_monitor.get_corresponding_holding_id(holding_id_s)
     item_id_s = process_monitor.df.at[i, 'Item_id_s']
     item_id_d = process_monitor.get_corresponding_item_id(item_id_s)
 
@@ -52,6 +52,7 @@ def poline(i: int) -> None:
 
     holding_id_d = process_monitor.get_corresponding_holding_id(holding_id_s)
 
+    # If the destination holding ID is None, we need to copy the holding data
     if holding_id_d is None:
         # Copy data from the source holding to the destination IZ
         holding_s = holdings.get_source_holding(i)
@@ -64,6 +65,7 @@ def poline(i: int) -> None:
             # If the destination holding could not be created, we skip the row
             return None
 
+    # if the destination holding is available, we retrieve the holding using the mms ID and holding ID
     elif item_id_d is None and pd.notnull(item_id_s):
         holding_d = Holding(mms_id_d, holding_id_d, zone=config['iz_d'], env=config['env'])
         _ = holding_d.data
@@ -84,6 +86,8 @@ def poline(i: int) -> None:
         process_monitor.df.at[i, 'Copied'] = True
         process_monitor.save()
         return None
+
+    # We check the purchase type of the PoLine
 
     if pol_purchase_type.endswith('_CO'):
         # In case of continuous orders, we copy the item to the destination IZ
