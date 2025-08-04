@@ -230,7 +230,11 @@ def holding(i: int) -> None:
     # ------------
     if process_monitor.get_corresponding_holding_id(holding_id_s) is None:
         # Copy the holding data from the source to the destination IZ
-        _ = holdings.copy_holding_to_destination_iz(i, bib_d)
+        holding_d = holdings.copy_holding_to_destination_iz(i, bib_d)
+
+        if holding_d is not None and not holding_d.error:
+            process_monitor.df.at[i, 'Copied'] = True
+            process_monitor.save()
 
     return None
 
