@@ -155,7 +155,7 @@ def get_data(excel_filepath: str, sheet_name) -> pd.DataFrame:
     """
     return pd.read_excel(excel_filepath, sheet_name=sheet_name, dtype=str)
 
-def get_corresponding_location(library_s: str, location_s: str) -> Optional[Tuple[str, str]]:
+def get_corresponding_location(library_s: str, location_s: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Returns the corresponding library and location for a given library and location.
 
@@ -168,8 +168,9 @@ def get_corresponding_location(library_s: str, location_s: str) -> Optional[Tupl
 
     Returns
     -------
-    Tuple[str, str] or None
-        A tuple containing the corresponding library and location. Returns None if no corresponding location is found.
+    Tuple[str, str] or None, None
+        A tuple containing the corresponding library and location.
+        Returns Tuple of None if no corresponding location is found.
     """
     locations_table = get_config()['locations_mapping']
 
@@ -187,7 +188,7 @@ def get_corresponding_location(library_s: str, location_s: str) -> Optional[Tupl
 
     if len(loc_temp) == 0:
         # No corresponding location found => error
-        return None
+        return None, None
 
     # Get the new location and library of the item
     library_d = loc_temp['Destination library code'].values[0]
