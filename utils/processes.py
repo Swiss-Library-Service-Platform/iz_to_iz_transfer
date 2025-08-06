@@ -117,7 +117,7 @@ def poline(i: int) -> None:
                 process_monitor.save()
                 return None
 
-            item_d = items.handle_one_time_pol_items(i, holding_s, holding_d, pol_d)
+            item_d = items.handle_one_time_pol_items(i, holding_s, holding_d)
             if item_d is None or item_d.error:
                 return None
 
