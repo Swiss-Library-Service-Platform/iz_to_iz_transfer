@@ -87,7 +87,7 @@ class ProcessMonitor:
 
     def get_columns(self) -> List[str]:
         """
-        Returns the columns for the process type.
+        Returns the columns of the csv file according to the process type.
 
         Returns
         -------
@@ -121,10 +121,6 @@ class ProcessMonitor:
     def create(self) -> None:
         """
         Creates a new process file with the appropriate columns.
-
-        Returns
-        -------
-        None
         """
         cols = self.get_columns()
         self.df = pd.DataFrame(columns=cols)
@@ -135,10 +131,6 @@ class ProcessMonitor:
     def load(self) -> None:
         """
         Loads the existing process file into a DataFrame.
-
-        Returns
-        -------
-        None
         """
         columns = self.get_columns()
         dtype_dict = {column: 'boolean' if column in ['Copied', 'Received'] else 'str' for column in columns}
@@ -158,10 +150,6 @@ class ProcessMonitor:
     def save(self) -> None:
         """
         Saves the current DataFrame to the process file.
-
-        Returns
-        -------
-        None
         """
         self.df.to_csv(self.file_path, index=False)
 
@@ -172,10 +160,6 @@ class ProcessMonitor:
         This method reads the Excel file at the path specified by `self.excel_filepath`, using the sheet named after the current process type. It aligns the columns of the loaded data with those expected for the process type, appends the data to the existing DataFrame, and initializes the 'Copied' column to False for all rows.
 
         No parameters are required.
-
-        Returns
-        -------
-        None
         """
         data = pd.read_excel(self.excel_filepath, sheet_name=self.process_type, dtype=str)
         data.columns = self.get_columns()[:len(data.columns)]
@@ -278,10 +262,6 @@ class ProcessMonitor:
             The destination PoLine number to set.
         purchase_type : str
             The purchase type to set.
-
-        Returns
-        -------
-        None
         """
         if self.process_type != 'PoLines':
             logging.critical(f'Process type {self.process_type} does not support setting PoLine data.')
@@ -300,10 +280,6 @@ class ProcessMonitor:
             The source MMS ID to match.
         mms_id_d : str
             The destination MMS ID to set.
-
-        Returns
-        -------
-        None
         """
         self.df.loc[self.df['MMS_id_s'] == mms_id_s, 'MMS_id_d'] = mms_id_d
 
@@ -317,10 +293,6 @@ class ProcessMonitor:
             The source Holding ID to match.
         holding_id_d : str
             The destination Holding ID to set.
-
-        Returns
-        -------
-        None
         """
         self.df.loc[self.df['Holding_id_s'] == holding_id_s, 'Holding_id_d'] = holding_id_d
 
@@ -334,10 +306,6 @@ class ProcessMonitor:
             The source Item ID to match.
         item_id_d : str
             The destination Item ID to set.
-
-        Returns
-        -------
-        None
         """
         self.df.loc[self.df['Item_id_s'] == item_id_s, 'Item_id_d'] = item_id_d
 
@@ -347,10 +315,6 @@ class ProcessMonitor:
         Resets the singleton instance of ProcessMonitor.
 
         This method is useful for testing purposes to ensure a fresh instance is created.
-
-        Returns
-        -------
-        None
         """
         cls._instance = None
         logging.info("ProcessMonitor instance reset.")

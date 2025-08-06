@@ -16,10 +16,6 @@ def poline(i: int) -> None:
     ----------
     i : int
         The index of the row to process.
-
-    Returns
-    -------
-    None
     """
     process_monitor = ProcessMonitor()
     holding_s = None
@@ -60,10 +56,15 @@ def poline(i: int) -> None:
             # If the source holding could not be retrieved, we skip the row
             return None
         holding_d = holdings.copy_holding_data(i, holding_s)
+        holding_id_d = holding_d.get_holding_id() if holding_d else None
 
-        if holding_d is None or holding_d.error:
+        if holding_id_d is None:
             # If the destination holding could not be created, we skip the row
             return None
+
+        # Update the process monitor with the new holding ID
+        process_monitor.set_corresponding_holding_id(holding_id_s, holding_id_d)
+        process_monitor.save()
 
     # if the destination holding is available, we retrieve the holding using the mms ID and holding ID
     elif item_id_d is None and pd.notnull(item_id_s):
@@ -140,6 +141,11 @@ def item(i: int) -> None:
 
     This function iterates through each row in the process monitor DataFrame,
     checks if the item has already been copied, and if not, processes it.
+
+    Parameters
+    ----------
+    i : int
+        The index of the row to process.
     """
     process_monitor = ProcessMonitor()
 
@@ -147,11 +153,9 @@ def item(i: int) -> None:
         # If the row is already copied, we skip it
         return None
 
-
     # ----------------------------------------
     # Retrieve the source item and its details
     # ----------------------------------------
-
     item_s = items.get_source_item_using_barcode(i)
     if item_s is None:
         # If the source item could not be retrieved, we skip the row
@@ -166,7 +170,6 @@ def item(i: int) -> None:
     process_monitor.df.at[i, 'MMS_id_s'] = iz_mms_id_s
     process_monitor.save()
 
-
     # --------
     # Copy bib
     # --------
@@ -176,17 +179,30 @@ def item(i: int) -> None:
     # Case if we don't have a destination known MMS ID
     if mms_id_d is None:
         bib_d = bibs.copy_bib_from_nz_to_dest_iz(iz_mms_id_s)
+        mms_id_d = bib_d.get_mms_id() if bib_d else None
 
-        if bib_d is None:
+        if mms_id_d is None:
             # If the destination bib could not be created, we skip the row
             return None
+
+    process_monitor.set_corresponding_mms_id(iz_mms_id_s, mms_id_d)
+    process_monitor.save()
 
     # ------------
     # Copy holding
     # ------------
-    if process_monitor.get_corresponding_holding_id(holding_id_s) is None:
+    holding_id_d = process_monitor.get_corresponding_holding_id(holding_id_s)
+    if holding_id_d is None:
         # Copy the holding data from the source to the destination IZ
-        _ = holdings.copy_holding_to_destination_iz(i, bib_d)
+        holding_d = holdings.copy_holding_to_destination_iz(i, bib_d)
+        holding_id_d = holding_d.get_holding_id() if holding_d else None
+
+        if holding_id_d is None:
+            # If the destination holding could not be created, we skip the row
+            return None
+
+    process_monitor.set_corresponding_holding_id(holding_id_s, holding_id_d)
+    process_monitor.save()
 
     # -------------
     # Copy the item
@@ -220,21 +236,29 @@ def holding(i: int) -> None:
     # Case if we don't have a destination known MMS ID
     if mms_id_d is None:
         bib_d = bibs.copy_bib_from_nz_to_dest_iz(iz_mms_id_s)
-
-        if bib_d is None:
+        mms_id_d = bib_d.get_mms_id() if bib_d else None
+        if mms_id_d is None:
             # If the destination bib could not be created, we skip the row
             return None
+
+    # we need to save the corresponding MMS ID
+    process_monitor.set_corresponding_mms_id(iz_mms_id_s, mms_id_d)
+    process_monitor.save()
 
     # ------------
     # Copy holding
     # ------------
-    if process_monitor.get_corresponding_holding_id(holding_id_s) is None:
+    holding_id_d = process_monitor.get_corresponding_holding_id(holding_id_s)
+    if holding_id_d is None:
         # Copy the holding data from the source to the destination IZ
         holding_d = holdings.copy_holding_to_destination_iz(i, bib_d)
+        holding_id_d = holding_d.get_holding_id() if holding_d else None
+        if holding_id_d is None:
+            return None
 
-        if holding_d is not None and not holding_d.error:
-            process_monitor.df.at[i, 'Copied'] = True
-            process_monitor.save()
+    process_monitor.set_corresponding_holding_id(holding_id_s, holding_id_d)
+    process_monitor.df.at[i, 'Copied'] = True
+    process_monitor.save()
 
     return None
 
@@ -261,12 +285,14 @@ def bib(i: int) -> None:
 
     # Copy the bib record from the source IZ to the destination IZ
     bib_d = bibs.copy_bib_from_nz_to_dest_iz(iz_mms_id_s)
+    mms_id_d = bib_d.get_mms_id() if bib_d else None
 
-    if bib_d is None:
+    if mms_id_d is None:
         # If the destination bib could not be created, we skip the row
         return None
 
     # Mark the row as copied
+    process_monitor.set_corresponding_mms_id(iz_mms_id_s, mms_id_d)
     process_monitor.df.at[i, 'Copied'] = True
     process_monitor.save()
 

@@ -14,7 +14,7 @@ import logging
 config = xlstools.get_config()
 
 
-def get_source_item_using_barcode(i: int) -> Item:
+def get_source_item_using_barcode(i: int) -> Optional[Item]:
     """
     Retrieves the source item based on the index provided in the DataFrame.
 
@@ -25,8 +25,8 @@ def get_source_item_using_barcode(i: int) -> Item:
 
     Returns
     -------
-    Item
-        The source item object.
+    Item, optional
+        The source item object, or None if an error occurs.
     """
     process_monitor = ProcessMonitor()
 
@@ -58,7 +58,7 @@ def get_source_item_using_barcode(i: int) -> Item:
     return item_s
 
 
-def copy_item_to_destination_iz(i, poline: Optional[bool] = None) -> Optional[Item]:
+def copy_item_to_destination_iz(i, poline: bool = False) -> Optional[Item]:
     """
     Copies an item from the source IZ to the destination IZ based on the provided index and configuration.
     This function retrieves the source item, updates its library and location according to the destination IZ,
@@ -69,12 +69,12 @@ def copy_item_to_destination_iz(i, poline: Optional[bool] = None) -> Optional[It
     ----------
     i : int
         The index of the row to process in the DataFrame.
-    poline : Optional[bool]
+    poline : bool, optional
         If True, the function will also handle the PoLine information for the item.
 
     Returns
     -------
-    Optional[Item]
+    Item, optional
         The newly created item in the destination IZ, or None if an error occurs.
     """
     # Load configuration and initialize process monitor
@@ -168,7 +168,7 @@ def copy_item_to_destination_iz(i, poline: Optional[bool] = None) -> Optional[It
     return item_d
 
 
-def clean_item_fields(item_data: etree.Element, rec_loc: str, retry=False) -> etree.Element:
+def clean_item_fields(item_data: etree.Element, rec_loc: str, retry: bool = False) -> etree.Element:
     """
     Cleans the fields of an item by removing unwanted characters and formatting.
 
@@ -215,8 +215,8 @@ def update_source_item(item_s: Item) -> Optional[Item]:
 
     Returns
     -------
-    Item
-        The updated source item with the new barcode.
+    Item, optional
+        The updated source item with the new barcode or None if an error occurs.
     """
     # Change barcode of source item
     if item_s.barcode.startswith('OLD_'):
@@ -247,7 +247,7 @@ def update_source_item(item_s: Item) -> Optional[Item]:
     return item_s
 
 
-def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, pol_d: POLine) -> Optional[Item]:
+def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding) -> Optional[Item]:
     """
     Retrieves the destination item from the holding based on the index provided in the DataFrame.
 
@@ -258,13 +258,11 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, po
     holding_s : Holding
         The source holding object from which to retrieve the item.
     holding_d : Holding
-        The holding object from which to retrieve the item.
-    pol_d : POLine
-        The destination PoLine object associated with the item.
+        The destination holding object where the item will be copied.
 
     Returns
     -------
-    Optional[Item]
+    Item, optional
         The destination item object, or None if not found.
     """
     process_monitor = ProcessMonitor()
@@ -286,6 +284,8 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, po
         items_d = holding_d.get_items()
 
     # get item rank in source holding
+    # Idea is to get the rank of the item in the source holding with the corresponding PoLine information.
+    # If the PoLine has to items in the source IZ it must be 2 items in destination IZ.
     index = next((i for i, item in enumerate(items_s) if item.item_id == item_id_s), -1)
 
     if index == -1:
@@ -343,12 +343,13 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, po
     if item_s.error:
         logging.error(f"{repr(item_s)}: failed to update barcode of source record: {item_s.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Failed to update source item barcode'
+        process_monitor.save()
         return None
 
     return item_d
 
 
-def make_reception(i) -> Optional[POLine]:
+def make_reception(i: int) -> Optional[POLine]:
     """
     Makes a reception for the item based on the index provided in the DataFrame.
 
@@ -356,13 +357,11 @@ def make_reception(i) -> Optional[POLine]:
     ----------
     i : int
         The index of the row to process in the DataFrame.
-    pol_d : Optional[POLine]
-        The destination PoLine object associated with the item.
 
     Returns
     -------
-    Optional[Item]
-        The item that was received, or None if an error occurs.
+    POLine, optional
+        The updated PoLine after making the reception, or None if an error occurs.
     """
     process_monitor = ProcessMonitor()
     pol_number_s = process_monitor.df.at[i, 'PoLine_s']

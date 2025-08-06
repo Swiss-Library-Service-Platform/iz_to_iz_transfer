@@ -48,19 +48,14 @@ def get_form_version(excel_filepath: str) -> str:
     return version
 
 
-def set_config(excel_filepath: str):
+def set_config(excel_filepath: str) -> None:
     """
-    Reads configuration from an Excel file and returns it as a dictionary.
+    Reads configuration from an Excel file and stores it in a global cache.
 
     Parameters
     ----------
     excel_filepath : str
         Path to the Excel file containing configuration data.
-
-    Returns
-    -------
-    dict
-        Dictionary containing configuration data.
     """
     global _config_cache
 
@@ -168,9 +163,8 @@ def get_corresponding_location(library_s: str, location_s: str) -> Tuple[Optiona
 
     Returns
     -------
-    Tuple[str, str] or None, None
+    Tuple[Optional[str], Optional[str]]
         A tuple containing the corresponding library and location.
-        Returns Tuple of None if no corresponding location is found.
     """
     locations_table = get_config()['locations_mapping']
 
@@ -210,7 +204,6 @@ def get_corresponding_library(library_s: str) -> Optional[str]:
     str or None
         The corresponding library name, or None if no corresponding library is found.
     """
-
 
     locations_table = get_config()['locations_mapping']
 
@@ -280,9 +273,8 @@ def get_corresponding_vendor(vendor_s: str, vendor_account_s: str) -> Tuple[Opti
 
     Returns
     -------
-    Tuple[str, str] or None
+    Tuple[Optional[str], Optional[str]]
         A tuple containing the corresponding vendor and vendor account.
-        Returns None if no corresponding vendor is found.
     """
     vendors_table = get_config()['vendors_mapping']
 

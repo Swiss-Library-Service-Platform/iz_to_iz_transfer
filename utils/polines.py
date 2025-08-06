@@ -23,7 +23,8 @@ def copy_poline(i: int) -> Optional[POLine]:
 
     Returns
     -------
-    None
+    Optional[POLine]
+        The copied PoLine object if successful, or None if an error occurs.
     """
     process_monitor = ProcessMonitor()
     pol_number_s = process_monitor.df.at[i, 'PoLine_s']
@@ -32,7 +33,6 @@ def copy_poline(i: int) -> Optional[POLine]:
     # -----------------------
     # Fetch the source PoLine
     # -----------------------
-
     # Fetch the source PoLine
     pol_s = POLine(pol_number_s, config['iz_s'], config['env'])
     pol_data = deepcopy(pol_s.data)
@@ -64,10 +64,12 @@ def copy_poline(i: int) -> Optional[POLine]:
     if mms_id_d is None:
         return None
 
+    process_monitor.set_corresponding_mms_id(mms_id_s, mms_id_d)
+    process_monitor.save()
+
     # ---------------------------
     # Prepare the new PoLine data
     # ---------------------------
-
     # Update locations
     locations = []
     for loc in pol_data['location']:
@@ -144,11 +146,9 @@ def copy_poline(i: int) -> Optional[POLine]:
         process_monitor.save()
         return None
 
-
     # ---------------------
     # Create the new PoLine
     # ---------------------
-
     pol_d = POLine(data=pol_data, zone=config['iz_d'], env=config['env']).create()
 
     # Check if the PoLine was created successfully
@@ -167,21 +167,36 @@ def copy_poline(i: int) -> Optional[POLine]:
 
 def handle_interested_users(pol_data: dict) -> Optional[dict]:
     """
-    Handle interested users for the PoLine.
+    Handle interested users for the PoLine. The system will copy the
+    interested users from the source PoLine to the destination PoLine and
+    copy the user itself in the destination IZ if it does not exist there.
 
     Parameters
     ----------
     pol_data : dict
         The PoLine data dictionary.
+
+    Returns
+    -------
+    Optional[dict]
+        The updated PoLine data dictionary with interested users, or None if an error occurs.
     """
     interested_users = []
+
+    # Check if interested_user field is present and not empty
+    # We check also configuration file. It is possible to never copy interested users.
     if ('interested_user' in pol_data and
         pol_data['interested_user'] and
         'interested_user' not in config['polines_fields']['to_delete']):
 
+        # If interested_user is present, we will copy it to the destination PoLine
         for interested_user in pol_data['interested_user']:
             primary_id = interested_user['primary_id']
+
+            # If the primary_id is not in the interested_users list, we will copy the user
             if primary_id not in config['interested_users']:
+
+                # We try to fetch the user, if it doen't exist in the destination IZ, we will create it
                 user = User(primary_id, zone=config['iz_d'], env=config['env'])
                 _ = user.data
                 if user.error:
@@ -191,6 +206,10 @@ def handle_interested_users(pol_data: dict) -> Optional[dict]:
                     else:
                         logging.error(f"{repr(user)}: interested user not found")
                         return None
+
+            # If the user exists, we will add it to the interested_users list
+            # It is important to keep the primary_id in the interested_users list
+            # to avoid duplicated copies of the same user
             config['interested_users'].append(primary_id)
             interested_users.append(deepcopy(interested_user))
 

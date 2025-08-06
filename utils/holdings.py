@@ -10,7 +10,7 @@ import logging
 config = xlstools.get_config()
 
 
-def get_source_holding(i: int) -> Item:
+def get_source_holding(i: int) -> Optional[Item]:
     """
     Retrieves the source holding based on the index provided in the DataFrame.
 
@@ -21,7 +21,7 @@ def get_source_holding(i: int) -> Item:
 
     Returns
     -------
-    Item
+    Item, Optional
         The source item object.
     """
     process_monitor = ProcessMonitor()
@@ -55,14 +55,14 @@ def copy_holding_data(i: int, holding_s: Holding) -> Optional[Holding]:
 
     Parameters
     ----------
+    i : int
+        The index of the row in the process monitor DataFrame.
     holding_s : Holding
         The source holding object containing the data to be copied.
-    mms_id_d : str
-        The MMS ID of the bib in the destination IZ.
 
     Returns
     -------
-    Optional[Holding]
+    Holding, Optional
         The holding object in the destination IZ, or None if an error occurs.
     """
 
@@ -132,14 +132,10 @@ def copy_holding_data(i: int, holding_s: Holding) -> Optional[Holding]:
         process_monitor.df.loc[process_monitor.df['Holding_id_s'] == holding_id_s, 'Error'] = 'Destination Holding not updated'
         return None
 
-    # Update the process monitor with the new holding ID
-    process_monitor.set_corresponding_holding_id(holding_id_s, holding_d.holding_id)
-    process_monitor.save()
-
     return holding_d
 
 
-def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Holding:
+def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Optional[Holding]:
     """
     Copies holding data from the source IZ to the destination IZ.
 
@@ -237,8 +233,5 @@ def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Holding:
             process_monitor.df.loc[process_monitor.df['Holding_id_s'] == holding_id_s, 'Error'] = 'Destination Holding not created'
             process_monitor.save()
             return None
-
-    process_monitor.set_corresponding_holding_id(holding_id_s, holding_d.holding_id)
-    process_monitor.save()
 
     return holding_d
