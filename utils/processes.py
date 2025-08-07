@@ -2,7 +2,7 @@ from utils import polines, bibs, holdings, items, xlstools
 from utils.processmonitoring import ProcessMonitor
 import logging
 import pandas as pd
-from almapiwrapper.inventory import IzBib, Holding, Item
+from almapiwrapper.inventory import IzBib, Holding, Item, Collection
 from almapiwrapper.acquisitions import POLine
 
 config = xlstools.get_config()
@@ -295,5 +295,79 @@ def bib(i: int) -> None:
     process_monitor.set_corresponding_mms_id(iz_mms_id_s, mms_id_d)
     process_monitor.df.at[i, 'Copied'] = True
     process_monitor.save()
+
+    return None
+
+
+def collection(i: int) -> None:
+    """
+    Processes a single row in the process monitor DataFrame for collection records.
+
+    Parameters
+    ----------
+    i : int
+        The index of the row to process.
+
+    Returns
+    -------
+    None
+    """
+    process_monitor = ProcessMonitor()
+
+    if process_monitor.df.at[i, 'Copied']:
+        # If the row is already copied, we skip it
+        return None
+
+    # Get source collection information
+    collection_id_s = process_monitor.df.at[i, 'Collection_id_s']
+    col_s = Collection(collection_id_s, zone=config['iz_s'], env=config['env'])
+    bibs_s = col_s.bibs
+
+    if col_s.error:
+        logging.error(f"{repr(col_s)}: {col_s.error_msg}")
+        process_monitor.df.at[i, 'Error'] = 'Source Collection not found'
+        process_monitor.save()
+        return None
+
+    # Get destination collection information
+    collection_id_d = process_monitor.df.at[i, 'Collection_id_d']
+    col_d = Collection(collection_id_d, zone=config['iz_d'], env=config['env'])
+    bibs_d = col_d.bibs
+
+    if col_d.error:
+        logging.error(f"{repr(col_d)}: {col_d.error_msg}")
+        process_monitor.df.at[i, 'Error'] = 'Destination Collection not found'
+        process_monitor.save()
+        return None
+
+    mms_id_col_d = [bib.get_mms_id() for bib in bibs_d]
+
+    for bib_s in bibs_s:
+        # Copy each bib from the source collection to the destination collection
+
+
+        bib_d = bibs.get_corresponding_bib_from_col(bib_s, i)
+        mms_id_d = bib_d.get_mms_id() if bib_d else None
+
+        if bib_d is None or bib_d.error:
+            continue
+
+        if mms_id_d in mms_id_col_d:
+            logging.warning(f"{col_d}: {mms_id_d} already in the collection")
+            continue
+
+        # Add the bib to the destination collection
+        mms_id_col_d.append(mms_id_d)
+        col_d.add_bib(bib_d)
+
+    # Mark the row as copied
+    if len(bibs_s) == len(mms_id_col_d):
+        process_monitor.df.at[i, 'Copied'] = True
+        process_monitor.save()
+        logging.info(f'{repr(col_s)}: collection completed with {len(mms_id_col_d)} bibs')
+    else:
+        logging.error(f'{repr(col_s)}: collection not completed, {len(mms_id_col_d)} bibs copied out of {len(bibs_s)}')
+        process_monitor.df.at[i, 'Error'] = 'Collection not completed'
+        process_monitor.save()
 
     return None
