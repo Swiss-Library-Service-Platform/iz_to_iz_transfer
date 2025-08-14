@@ -71,8 +71,13 @@ def set_config(excel_filepath: str) -> None:
         'lib_s': sheet.cell(row=8, column=2).value,
         'lib_d': sheet.cell(row=9, column=2).value,
         'env': {'Production': 'P', 'Sandbox': 'S'}.get(sheet.cell(row=10, column=2).value, 'P'),
-        'acq_department': sheet.cell(row=11, column=2).value,
-        'make_reception': True if sheet.cell(row=12, column=2).value == 'Yes' else False,
+        'circ_desk_s': sheet.cell(row=11, column=2).value,
+        'circ_desk_d': sheet.cell(row=12, column=2).value,
+        'cancel_note': sheet.cell(row=13, column=2).value,
+        'acq_department': sheet.cell(row=14, column=2).value,
+        'make_reception': True if sheet.cell(row=15, column=2).value == 'Yes' else False,
+        'make_loans': True if sheet.cell(row=16, column=2).value == 'Yes' else False,
+        'make_returns': True if sheet.cell(row=17, column=2).value == 'Yes' else False,
         'interested_users': [],
         'items_fields': {'src': {'to_delete': [], 'to_delete_if_error': []},
         'dest': {'to_delete': [], 'to_delete_if_error': []}},
@@ -80,7 +85,7 @@ def set_config(excel_filepath: str) -> None:
     }
 
     # Read items fields to delete from the Excel sheet
-    for i in range(15, 22):
+    for i in range(20, 27):
         key = sheet.cell(row=i, column=1).value
         value_src = sheet.cell(row=i, column=2).value
         value_dest = sheet.cell(row=i, column=3).value
@@ -96,7 +101,7 @@ def set_config(excel_filepath: str) -> None:
             config['items_fields']['dest']['to_delete_if_error'] += key.split(', ')
 
     # Read polines fields to delete from the Excel sheet
-    for i in range(24, 25):
+    for i in range(29, 30):
         key = sheet.cell(row=i, column=1).value
         value = sheet.cell(row=i, column=3).value
 

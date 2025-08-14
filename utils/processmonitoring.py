@@ -105,6 +105,8 @@ class ProcessMonitor:
             return ['MMS_id_s', 'MMS_id_d', 'Copied', 'Error']
         elif self.process_type == 'Collections':
             return ['Collection_id_s', 'Collection_id_d', 'Copied', 'Error']
+        elif self.process_type == 'Loans':
+            return ['Primary_id', 'Barcode_s', 'MMS_id_s', 'Holding_id_s', 'Item_id_s', 'MMS_id_d', 'Holding_id_d', 'Item_id_d', 'Barcode_d', 'Error']
         else:
             logging.critical(f'Unknown process type: {self.process_type}')
             sys.exit(1)

@@ -1,9 +1,12 @@
-from utils import polines, bibs, holdings, items, xlstools
-from utils.processmonitoring import ProcessMonitor
 import logging
+
 import pandas as pd
-from almapiwrapper.inventory import IzBib, Holding, Item, Collection
 from almapiwrapper.acquisitions import POLine
+from almapiwrapper.inventory import IzBib, Holding, Item, Collection
+from almapiwrapper.users import User
+
+from utils import polines, bibs, holdings, items, xlstools, loans
+from utils.processmonitoring import ProcessMonitor
 
 config = xlstools.get_config()
 
@@ -35,6 +38,10 @@ def poline(i: int) -> None:
     item_id_d = process_monitor.get_corresponding_item_id(item_id_s)
 
     pol_number_d, pol_purchase_type = process_monitor.get_corresponding_poline(pol_number_s)
+
+    # -----------
+    # Copy PoLine
+    # ------------
     if pol_number_d is None:
         pol_d = polines.copy_poline(i)
 
@@ -90,11 +97,17 @@ def poline(i: int) -> None:
 
     # We check the purchase type of the PoLine
 
+    # ------------------------------
+    # Copy items of continuous order
+    # ------------------------------
     if pol_purchase_type.endswith('_CO'):
         # In case of continuous orders, we copy the item to the destination IZ
         # The PoLine is linked to the holding and the item don't exist in the destination IZ
         items.copy_item_to_destination_iz(i, poline=True)
 
+    # ------------------------------
+    # Update items of one time order
+    # ------------------------------
     elif pol_purchase_type.endswith('_OT'):
         # In case of one-time orders, the item is linked to the PoLine and
         # the item should already exist in the destination IZ
@@ -262,6 +275,7 @@ def holding(i: int) -> None:
 
     return None
 
+
 def bib(i: int) -> None:
     """
     Processes a single row in the process monitor DataFrame for bib records.
@@ -344,8 +358,6 @@ def collection(i: int) -> None:
 
     for bib_s in bibs_s:
         # Copy each bib from the source collection to the destination collection
-
-
         bib_d = bibs.get_corresponding_bib_from_col(bib_s, i)
         mms_id_d = bib_d.get_mms_id() if bib_d else None
 
@@ -369,5 +381,92 @@ def collection(i: int) -> None:
         logging.error(f'{repr(col_s)}: collection not completed, {len(mms_id_col_d)} bibs copied out of {len(bibs_s)}')
         process_monitor.df.at[i, 'Error'] = 'Collection not completed'
         process_monitor.save()
+
+    return None
+
+
+def loan(i: int) -> None:
+    """
+    Processes a single row in the process monitor DataFrame for loan records.
+
+    Parameters
+    ----------
+    i : int
+        The index of the row to process.
+
+    Returns
+    -------
+    None
+    """
+    process_monitor = ProcessMonitor()
+
+    if process_monitor.df.at[i, 'Copied']:
+        # If the row is already copied, we skip it
+        return None
+
+    # -------------------------
+    # Create loan using item id
+    # -------------------------
+    if (config['make_loans'] and
+            pd.isnull(process_monitor.df.at[i, 'Barcode_d']) and
+            (pd.notnull(process_monitor.df.at[i, 'Item_id_d']) or
+             pd.notnull(process_monitor.df.at[i, 'Barcode_s'])) and not (
+                    pd.isnull(process_monitor.df.at[i, 'Item_id_d']) and
+                    pd.isnull(process_monitor.df.at[i, 'Barcode_s'])
+            )):
+
+        # Create a loan for the item in the destination IZ
+        loan_d = loans.create_loan(i)
+
+        if loan_d is None or loan_d.error:
+            if loan_d is not None:
+                logging.error(f"{repr(loan_d)}: {loan_d.error_msg}")
+            process_monitor.df.at[i, 'Error'] = 'Destination item not loaned'
+            process_monitor.save()
+            return None
+        else:
+            # If the loan was successful, we update the DataFrame
+            if pd.isnull(process_monitor.df.at[i, 'Barcode_d']):
+                process_monitor.df.at[i, 'Barcode_d'] = loan_d.data['item_barcode']
+            if pd.isnull(process_monitor.df.at[i, 'Item_id_d']):
+                process_monitor.df.at[i, 'Item_id_d'] = loan_d.data['item_id']
+                process_monitor.df.at[i, 'Holding_id_d'] = loan_d.data['holding_id']
+                process_monitor.df.at[i, 'MMS_id_d'] = loan_d.data['mms_id']
+            process_monitor.save()
+
+    # -----------
+    # Make return
+    # -----------
+    if (
+            config['make_returns']
+            and (
+            pd.isnull(process_monitor.df.at[i, 'Barcode_s'])
+            or pd.isnull(process_monitor.df.at[i, 'Item_id_s']))
+            and not (
+            pd.isnull(process_monitor.df.at[i, 'Barcode_s'])
+            and pd.isnull(process_monitor.df.at[i, 'Item_id_s']))
+    ):
+
+        item_s = loans.make_return(i)
+
+        if item_s is None or item_s.error:
+            if item_s is not None:
+                logging.error(f"{repr(item_s)}: {item_s.error_msg}")
+            process_monitor.df.at[i, 'Error'] = 'Source item not returned'
+            process_monitor.save()
+            return None
+        else:
+            # If the return was successful, we update the DataFrame
+            if pd.isnull(process_monitor.df.at[i, 'Barcode_s']):
+                process_monitor.df.at[i, 'Barcode_s'] = item_s.barcode
+            if pd.isnull(process_monitor.df.at[i, 'Item_id_s']):
+                process_monitor.df.at[i, 'Item_id_s'] = item_s.get_item_id()
+                process_monitor.df.at[i, 'Holding_id_s'] = item_s.get_holding_id()
+                process_monitor.df.at[i, 'MMS_id_s'] = item_s.get_mms_id()
+            process_monitor.save()
+
+    # If we reach this point, we have successfully processed the loan or return
+    process_monitor.df.at[i, 'Copied'] = True
+    process_monitor.save()
 
     return None

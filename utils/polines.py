@@ -170,6 +170,9 @@ def handle_interested_users(pol_data: dict) -> Optional[dict]:
     Handle interested users for the PoLine. The system will copy the
     interested users from the source PoLine to the destination PoLine and
     copy the user itself in the destination IZ if it does not exist there.
+    The interested users will be added to the PoLine only if the
+    po line is in SENT status and the interested_user field is not in the
+    configuration file to delete.
 
     Parameters
     ----------
@@ -187,7 +190,8 @@ def handle_interested_users(pol_data: dict) -> Optional[dict]:
     # We check also configuration file. It is possible to never copy interested users.
     if ('interested_user' in pol_data and
         pol_data['interested_user'] and
-        'interested_user' not in config['polines_fields']['to_delete']):
+        'interested_user' not in config['polines_fields']['to_delete'] and
+        pol_data['status']['value'] == 'SENT'):
 
         # If interested_user is present, we will copy it to the destination PoLine
         for interested_user in pol_data['interested_user']:

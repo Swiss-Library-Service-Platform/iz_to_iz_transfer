@@ -24,6 +24,9 @@ class TestXlsTools(unittest.TestCase):
         self.assertEqual(xlstools.get_config().get('polines_fields'), {'to_delete': [], 'to_delete_if_error': ['interested_user']})
         self.assertIn('vendors_mapping', xlstools.get_config())
         self.assertEqual(xlstools.get_config()['locations_mapping'].iloc[0, 0], '*DEFAULT*')
+        self.assertEqual(xlstools.get_config().get('circ_desk_s'), 'A100_KUR')
+        self.assertEqual(xlstools.get_config().get('circ_desk_d'), 'DEFAULT_CIRC_DESK')
+        self.assertIsNone(xlstools.get_config().get('cancel_note'))
 
     def test_polines_to_transfer(self):
         excel_path = 'test/test_data/test_data_IZ_to_IZ_1.xlsx'
