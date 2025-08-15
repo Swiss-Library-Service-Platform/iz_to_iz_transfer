@@ -1,11 +1,12 @@
 import logging
+from http.cookiejar import user_domain_match
 
 import pandas as pd
 from almapiwrapper.acquisitions import POLine
 from almapiwrapper.inventory import IzBib, Holding, Item, Collection
-from almapiwrapper.users import User
+from almapiwrapper.users import User, Request
 
-from utils import polines, bibs, holdings, items, xlstools, loans
+from utils import polines, bibs, holdings, items, xlstools, loans, requests
 from utils.processmonitoring import ProcessMonitor
 
 config = xlstools.get_config()
@@ -468,5 +469,74 @@ def loan(i: int) -> None:
     # If we reach this point, we have successfully processed the loan or return
     process_monitor.df.at[i, 'Copied'] = True
     process_monitor.save()
+
+    return None
+
+
+def request(i: int) -> None:
+    """
+    Processes a single row in the process monitor DataFrame for request records.
+
+    Parameters
+    ----------
+    i : int
+        The index of the row to process.
+
+    Returns
+    -------
+    None
+    """
+    process_monitor = ProcessMonitor()
+
+    if process_monitor.df.at[i, 'Copied']:
+        # If the row is already copied, we skip it
+        return None
+
+    # Get the source request information
+    primary_id = process_monitor.df.at[i, 'Primary_id']
+    request_id_s = process_monitor.df.at[i, 'Request_id_s']
+    request_s = Request(request_id=request_id_s, user_id=primary_id, zone=config['iz_s'], env=config['env'])
+    _ = request_s.data  # Ensure the request data is loaded
+
+    if request_s.error:
+        logging.error(f"{repr(request_s)}: {request_s.error_msg}")
+        process_monitor.df.at[i, 'Error'] = 'Source Request not found'
+        process_monitor.save()
+        return None
+
+    # ------------------------------------
+    # Create request in the destination IZ
+    # ------------------------------------
+    if pd.isnull(process_monitor.df.at[i, 'Request_id_d']):
+        request_d = requests.create_request(i, request_s)
+
+        if request_d is None or request_s.error:
+            if request_d is not None:
+                logging.error(f"{repr(request_d)}: {request_d.error_msg}")
+            else:
+                logging.error(f"Request with ID {request_id_s} could not be created.")
+            process_monitor.df.at[i, 'Error'] = 'Source Request not created'
+            process_monitor.save()
+            return None
+
+        process_monitor.df.at[i, 'Request_id_d'] = request_d.request_id
+        process_monitor.save()
+
+    # ---------------------
+    # Cancel source request
+    # ---------------------
+    if pd.notnull(process_monitor.df.at[i, 'Request_id_d']):
+        request_s.save()
+        request_s.cancel(reason=config['cancel_reason'], note=config['cancel_note'], notify_user=True if config['cancel_note'] else False)
+
+        if request_s.error:
+            logging.error(f"{repr(request_s)}: {request_s.error_msg}")
+            process_monitor.df.at[i, 'Error'] = 'Source Request not cancelled'
+            process_monitor.save()
+            return None
+
+        # Mark the row as copied
+        process_monitor.df.at[i, 'Copied'] = True
+        process_monitor.save()
 
     return None

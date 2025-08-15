@@ -1,13 +1,15 @@
-from utils import xlstools
-import pandas as pd
-from utils.processmonitoring import ProcessMonitor
-from almapiwrapper.inventory import Item
-from almapiwrapper.users import User, Loan
-
 import logging
 from typing import Optional
 
+import pandas as pd
+from almapiwrapper.inventory import Item
+from almapiwrapper.users import User, Loan
+
+from utils import xlstools
+from utils.processmonitoring import ProcessMonitor
+
 config = xlstools.get_config()
+
 
 def create_loan(i: int) -> Optional[Loan]:
     """
