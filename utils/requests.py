@@ -6,6 +6,7 @@ import pandas as pd
 from almapiwrapper.inventory import Item, IzBib
 from almapiwrapper.users import User, Request
 from almapiwrapper.record import JsonData
+from datetime import datetime
 
 from utils import xlstools
 from utils.processmonitoring import ProcessMonitor
@@ -76,6 +77,12 @@ def create_request(i: int, request_s: Request) -> Optional[Request]:
     # Warning: request status case must be changed
     data['request_status'] = 'Not Started'
     del data['request_id']
+    if 'booking_start_date' in data:
+        start_date = datetime.strptime(data['booking_start_date'], '%Y-%m-%dT%H:%M:%SZ')
+        now = datetime.utcnow()
+        if start_date < now:
+            logging.warning(f"Booking start date {start_date} is in the past for request {data.get('request_id', 'unknown')}. Setting to now.")
+            data['booking_start_date'] = now.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     request_d = Request(data=JsonData(data), zone=config['iz_d'], env=config['env']).create()
 
