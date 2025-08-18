@@ -404,7 +404,7 @@ def loan(i: int) -> None:
     if process_monitor.df.at[i, 'Copied']:
         # If the row is already copied, we skip it
         return None
-
+    print(config['make_loans'])
     # -------------------------
     # Create loan using item id
     # -------------------------

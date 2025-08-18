@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 from copy import deepcopy
+from datetime import timedelta
 
 import pandas as pd
 from almapiwrapper.inventory import Item, IzBib
@@ -84,7 +85,25 @@ def create_request(i: int, request_s: Request) -> Optional[Request]:
             logging.warning(f"Booking start date {start_date} is in the past for request {data.get('request_id', 'unknown')}. Setting to now.")
             data['booking_start_date'] = now.strftime('%Y-%m-%dT%H:%M:%SZ')
 
+    if 'adjusted_booking_start_date' in data:
+        del data['adjusted_booking_start_date']
+
+    if 'adjusted_booking_start_date' in data:
+        del data['adjusted_booking_end_date']
+
     request_d = Request(data=JsonData(data), zone=config['iz_d'], env=config['env']).create()
+
+    # Second try to create the booking request if the first attempt failed
+    if request_d.error and 'booking_start_date' in data:
+        start_date = datetime.strptime(data["booking_start_date"], "%Y-%m-%dT%H:%M:%SZ")
+        end_date = datetime.strptime(data["booking_end_date"], "%Y-%m-%dT%H:%M:%SZ")
+        max_end_date = start_date + timedelta(days=27)
+
+        if end_date > max_end_date:
+            data["booking_end_date"] = max_end_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+            request_d = Request(data=JsonData(data), zone=config['iz_d'], env=config['env']).create()
+            process_monitor.df.at[i, 'Error'] = 'Booking end date adjusted'
+            process_monitor.save()
 
     if request_d.error:
         logging.error(f"{repr(request_d)}: {request_d.error_msg}")
