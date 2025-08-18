@@ -104,6 +104,7 @@ def create_request(i: int, request_s: Request) -> Optional[Request]:
             request_d = Request(data=JsonData(data), zone=config['iz_d'], env=config['env']).create()
             process_monitor.df.at[i, 'Error'] = 'Booking end date adjusted'
             process_monitor.save()
+            logging.warning(f"{repr(request_d)}: 'Booking end date adjusted: from {end_date.strftime("%Y-%m-%dT%H:%M:%SZ")} to {data["booking_end_date"]}'")
 
     if request_d.error:
         logging.error(f"{repr(request_d)}: {request_d.error_msg}")
