@@ -118,7 +118,11 @@ def copy_holding_data(i: int, holding_s: Holding) -> Optional[Holding]:
     if callnumber is None:
         logging.warning(f"{repr(holding_s)}: No call number found in source holding.")
     else:
-        holding_d.data.find('.//datafield[@tag="852"]').append(callnumber)
+        callnumber_code = callnumber.get('code')
+        if holding_d.data.find(f'.//datafield[@tag="852"]/subfield[@code="{callnumber_code}"]') is not None:
+            holding_d.data.find(f'.//datafield[@tag="852"]/subfield[@code="{callnumber_code}"]').text = callnumber.text
+        else:
+            holding_d.data.find('.//datafield[@tag="852"]').append(callnumber)
 
     # Remove $$t subfield of 852
     for f in holding_d.data.findall('.//datafield[@tag="852"]/subfield[@code="t"]'):
