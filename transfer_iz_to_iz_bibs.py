@@ -2,7 +2,7 @@
 # Transfer IZ to IZ bibs #
 ##########################
 
-# This script transfers bib reocrds from IZ source to IZ destination.
+# This script transfers bib records from IZ source to IZ destination.
 # The information about the transfer should be given in an Excel file
 # This file should be compliant with a given format
 
@@ -17,6 +17,13 @@ import sys
 from almapiwrapper.configlog import config_log
 from almapiwrapper.inventory import IzBib, Holding, Item
 from almapiwrapper.acquisitions import POLine, Vendor, Invoice, fetch_invoices
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+if 'alma_api_keys' not in os.environ:
+    dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    load_dotenv(dotenv_path=dotenv_path)
 
 from utils import xlstools
 
@@ -57,4 +64,3 @@ for i in process_monitor.df.index:
     processes.bib(i)
 
 logging.info('Bib records transfer from IZ to IZ terminated')
-

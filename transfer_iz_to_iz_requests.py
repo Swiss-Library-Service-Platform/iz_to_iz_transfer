@@ -20,6 +20,14 @@ import pandas as pd
 
 from utils import xlstools
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+if 'alma_api_keys' not in os.environ:
+    dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    load_dotenv(dotenv_path=dotenv_path)
+
 # Check if the correct number of arguments is provided
 if len(sys.argv) != 2:
     print("Usage : python transfer_iz_to_iz_requests.py <dataForm.xlsx>")
