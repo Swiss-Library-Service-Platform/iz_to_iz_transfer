@@ -7,8 +7,8 @@ import pandas as pd
 
 # Config logs
 config_log()
-barcodes = pd.read_excel('model/test_data_IZ_to_IZ.xlsx', sheet_name=1, dtype=str)['Barcode'].dropna().str.strip("'")
-src_data = pd.read_excel('model/test_data_IZ_to_IZ.xlsx', sheet_name='Holdings', dtype=str).dropna()[['IZ_MMS_id','Holding_id']]
+barcodes = pd.read_excel('models/test_data_IZ_to_IZ.xlsx', sheet_name=1, dtype=str)['Barcode'].dropna().str.strip("'")
+src_data = pd.read_excel('models/test_data_IZ_to_IZ.xlsx', sheet_name='Holdings', dtype=str).dropna()[['IZ_MMS_id','Holding_id']]
 
 
 for i, barcode in enumerate(barcodes):
