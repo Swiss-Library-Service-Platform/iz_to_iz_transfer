@@ -10,7 +10,7 @@
 # To start the script:
 # python transfer_iz_to_iz_holdings.py <dataForm.xlsx>
 
-EXCEL_FORM_VERSION = '5.0'
+EXCEL_FORM_VERSION = '6.0'
 
 import logging
 import sys
