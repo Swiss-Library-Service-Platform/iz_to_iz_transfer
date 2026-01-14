@@ -113,16 +113,19 @@ def set_config(excel_filepath: str) -> None:
 
 
     # Get Locations_mapping tab information
-    config['locations_mapping'] = pd.read_excel(excel_filepath, sheet_name='Locations_mapping', dtype=str)
+    config['locations_mapping'] = (pd.read_excel(excel_filepath, sheet_name='Locations_mapping', dtype=str)
+                                   .apply(lambda col: col.str.strip() if col.dtype == "object" else col))
 
     # Get item policies mapping tab information
     # config['item_policies_mapping'] = pd.read_excel(excel_filepath, sheet_name='Item_policies_mapping', dtype=str)
 
     # Get vendors mapping tab information
-    config['vendors_mapping'] = pd.read_excel(excel_filepath, sheet_name='Vendors_mapping', dtype=str)
+    config['vendors_mapping'] = (pd.read_excel(excel_filepath, sheet_name='Vendors_mapping', dtype=str)
+                                 .apply(lambda col: col.str.strip() if col.dtype == "object" else col))
 
     # Get funding sources mapping tab information
-    config['Funds_mapping'] = pd.read_excel(excel_filepath, sheet_name='Funds_mapping', dtype=str)
+    config['Funds_mapping'] = (pd.read_excel(excel_filepath, sheet_name='Funds_mapping', dtype=str)
+                               .apply(lambda col: col.str.strip() if col.dtype == "object" else col))
 
     _config_cache = config
 

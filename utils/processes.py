@@ -93,7 +93,8 @@ def poline(i: int) -> None:
         # If the item ID is NaN, we skip the item processing
         logging.warning(f"Item ID is NaN for row {i}, skipping item processing.")
         process_monitor.df.at[i, 'Copied'] = True
-        if process_monitor.df.at[i, 'Error'] and ' - SOLVED' not in process_monitor.df.at[i, 'Error']:
+        error_msg = process_monitor.df.at[i, 'Error']
+        if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
             process_monitor.df.at[i, 'Error'] += ' - SOLVED'
         process_monitor.save()
         return None
@@ -274,7 +275,8 @@ def holding(i: int) -> None:
 
     process_monitor.set_corresponding_holding_id(holding_id_s, holding_id_d)
     process_monitor.df.at[i, 'Copied'] = True
-    if process_monitor.df.at[i, 'Error'] and ' - SOLVED' not in process_monitor.df.at[i, 'Error']:
+    error_msg = process_monitor.df.at[i, 'Error']
+    if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
     process_monitor.save()
 
@@ -313,7 +315,8 @@ def bib(i: int) -> None:
     # Mark the row as copied
     process_monitor.set_corresponding_mms_id(iz_mms_id_s, mms_id_d)
     process_monitor.df.at[i, 'Copied'] = True
-    if process_monitor.df.at[i, 'Error'] and ' - SOLVED' not in process_monitor.df.at[i, 'Error']:
+    error_msg = process_monitor.df.at[i, 'Error']
+    if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
     process_monitor.save()
 
@@ -382,7 +385,8 @@ def collection(i: int) -> None:
     # Mark the row as copied
     if len(bibs_s) == len(mms_id_col_d):
         process_monitor.df.at[i, 'Copied'] = True
-        if process_monitor.df.at[i, 'Error'] and ' - SOLVED' not in process_monitor.df.at[i, 'Error']:
+        error_msg = process_monitor.df.at[i, 'Error']
+        if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
             process_monitor.df.at[i, 'Error'] += ' - SOLVED'
         process_monitor.save()
         logging.info(f'{repr(col_s)}: collection completed with {len(mms_id_col_d)} bibs')
@@ -476,7 +480,8 @@ def loan(i: int) -> None:
 
     # If we reach this point, we have successfully processed the loan or return
     process_monitor.df.at[i, 'Copied'] = True
-    if process_monitor.df.at[i, 'Error'] and ' - SOLVED' not in process_monitor.df.at[i, 'Error']:
+    error_msg = process_monitor.df.at[i, 'Error']
+    if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
     process_monitor.save()
 
@@ -547,7 +552,8 @@ def request(i: int) -> None:
 
         # Mark the row as copied
         process_monitor.df.at[i, 'Copied'] = True
-        if process_monitor.df.at[i, 'Error'] and ' - SOLVED' not in process_monitor.df.at[i, 'Error']:
+        error_msg = process_monitor.df.at[i, 'Error']
+        if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
             process_monitor.df.at[i, 'Error'] += ' - SOLVED'
         process_monitor.save()
 

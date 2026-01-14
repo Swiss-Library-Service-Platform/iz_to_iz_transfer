@@ -156,7 +156,8 @@ def copy_item_to_destination_iz(i, poline: bool = False) -> Optional[Item]:
 
     process_monitor.set_corresponding_item_id(item_s.item_id, item_d.item_id)
     process_monitor.df.at[i, 'Copied'] = True
-    if process_monitor.df.at[i, 'Error'] and ' - SOLVED' not in process_monitor.df.at[i, 'Error']:
+    error_msg = process_monitor.df.at[i, 'Error']
+    if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
     process_monitor.save()
 
@@ -338,7 +339,8 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding) ->
     process_monitor.set_corresponding_item_id(item_s.item_id, item_d.item_id)
     if not received:
         process_monitor.df.at[i, 'Copied'] = True
-        if process_monitor.df.at[i, 'Error'] and ' - SOLVED' not in process_monitor.df.at[i, 'Error']:
+        error_msg = process_monitor.df.at[i, 'Error']
+        if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
             process_monitor.df.at[i, 'Error'] += ' - SOLVED'
     process_monitor.save()
 
@@ -425,6 +427,7 @@ def make_reception(i: int) -> Optional[POLine]:
         return None
 
     process_monitor.df.at[i, 'Copied'] = True
-    if process_monitor.df.at[i, 'Error'] and ' - SOLVED' not in process_monitor.df.at[i, 'Error']:
+    error_msg = process_monitor.df.at[i, 'Error']
+    if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
     process_monitor.save()
