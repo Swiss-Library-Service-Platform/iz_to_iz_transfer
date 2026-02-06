@@ -139,10 +139,16 @@ def copy_local_extensions(iz_bib_s: IzBib, iz_bib_d: IzBib, i: int) -> Optional[
     process_monitor = ProcessMonitor()
 
     # We copy local extensions from source IZ bib to destination IZ bib
+    # Idea is also to avoid duplicated local extensions in destination IZ bib
+    f998a_d =  [f998a.text for f998a in iz_bib_d.data.findall('.//datafield[@tag="998"]/subfield[@code="a"]')
+               if f998a.text is not None]
+
     f998s = [f998 for f998 in iz_bib_s.data.findall('.//datafield[@tag="998"]')
              if f998.find('./subfield[@code="a"]') is not None
+             and f998.find('./subfield[@code="a"]').text is not None
              and f998.find('./subfield[@code="a"]').text in
-             [ 'no_inventory_analytical', 'no_inventory_superordinate_monograph', 'no_inventory_analytical']]
+             [ 'no_inventory_analytical', 'no_inventory_superordinate_monograph', 'no_inventory_serial'] # specific local extensions to copy
+             and f998.find('./subfield[@code="a"]').text not in f998a_d] # avoid duplicates fields in destination
 
     if len(f998s) == 0:
         return iz_bib_d
