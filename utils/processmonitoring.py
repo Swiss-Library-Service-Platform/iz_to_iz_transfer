@@ -163,7 +163,10 @@ class ProcessMonitor:
         """
         Loads data from the specified Excel file into the DataFrame for processing.
 
-        This method reads the Excel file at the path specified by `self.excel_filepath`, using the sheet named after the current process type. It aligns the columns of the loaded data with those expected for the process type, appends the data to the existing DataFrame, and initializes the 'Copied' column to False for all rows.
+        This method reads the Excel file at the path specified by `self.excel_filepath`,
+        using the sheet named after the current process type.
+        It aligns the columns of the loaded data with those expected for the process type,
+        appends the data to the existing DataFrame, and initializes the 'Copied' column to False for all rows.
 
         No parameters are required.
         """

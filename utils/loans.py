@@ -34,16 +34,20 @@ def create_loan(i: int) -> Optional[Loan]:
     item_id_d = process_monitor.df.at[i, 'Item_id_d']
     primary_id = process_monitor.df.at[i, 'Primary_id']
     barcode_s = process_monitor.df.at[i, 'Barcode_s']
+    barcode_d = process_monitor.df.at[i, 'Barcode_d']
 
-    # Case when barcode only is provided
-    if (pd.isnull(mms_id_d) or pd.isnull(holding_id_d) or pd.isnull(item_id_d)) and pd.notnull(barcode_s):
+    # Case when all IDs are provided in the destination IZ
+    if pd.notnull(mms_id_d) and pd.notnull(holding_id_d) and pd.notnull(item_id_d):
+        item_d = Item(mms_id_d, holding_id_d, item_id_d, zone=config['iz_d'], env=config['env'])
+
+    # Case when barcode only is provided in the destination IZ
+    elif pd.notnull(barcode_d):
+        item_d = Item(barcode=barcode_d, zone=config['iz_d'], env=config['env'])
+
+    # Case when barcode only of source item is provided
+    elif (pd.isnull(mms_id_d) or pd.isnull(holding_id_d) or pd.isnull(item_id_d)) and pd.notnull(barcode_s):
         # If the source barcode is set, we use it to find the item in the destination IZ
         item_d = Item(barcode=barcode_s.replace('OLD_', ''), zone=config['iz_d'], env=config['env'])
-
-    # Case when all IDs are provided
-    elif pd.notnull(mms_id_d) and pd.notnull(holding_id_d) and pd.notnull(item_id_d):
-        # Create item object
-        item_d = Item(mms_id_d, holding_id_d, item_id_d, zone=config['iz_d'], env=config['env'])
 
     else:
         logging.error(f"Row {i}: Expected item information missing")

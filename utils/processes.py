@@ -416,17 +416,21 @@ def loan(i: int) -> None:
     if process_monitor.df.at[i, 'Copied']:
         # If the row is already copied, we skip it
         return None
-    print(config['make_loans'])
     # -------------------------
     # Create loan using item id
     # -------------------------
-    if (config['make_loans'] and
-            pd.isnull(process_monitor.df.at[i, 'Barcode_d']) and
-            (pd.notnull(process_monitor.df.at[i, 'Item_id_d']) or
-             pd.notnull(process_monitor.df.at[i, 'Barcode_s'])) and not (
-                    pd.isnull(process_monitor.df.at[i, 'Item_id_d']) and
-                    pd.isnull(process_monitor.df.at[i, 'Barcode_s'])
-            )):
+    if (
+            config['make_loans']
+            and (
+                    pd.notnull(process_monitor.df.at[i, 'Barcode_d'])
+                    or pd.notnull(process_monitor.df.at[i, 'Barcode_s'])
+                    or (
+                        pd.notnull(process_monitor.df.at[i, 'Item_id_d'])
+                        and pd.notnull(process_monitor.df.at[i, 'Holding_id_d'])
+                        and pd.notnull(process_monitor.df.at[i, 'MMS_id_d'])
+                    )
+            )
+    ):
 
         # Create a loan for the item in the destination IZ
         loan_d = loans.create_loan(i)
