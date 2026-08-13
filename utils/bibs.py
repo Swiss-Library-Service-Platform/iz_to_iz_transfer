@@ -225,7 +225,7 @@ def get_specific_local_extensions_to_transfer(iz_bib_s: IzBib) -> List[etree.Ele
     """
     local_extensions = []
     local_extensions += iz_bib_s.data.xpath(
-        ".//datafield[@tag='961'][subfield[@code='2' and (normalize-space()='ofj' or normalize-space()='ifofj')]]"
+        ".//datafield[@tag='961'][subfield[@code='2' and (normalize-space()='ofj' or normalize-space()='ifofj-')]]"
     )
     local_extensions += iz_bib_s.data.xpath(
         ".//datafield[@tag='990'][subfield[@code='a' and ("

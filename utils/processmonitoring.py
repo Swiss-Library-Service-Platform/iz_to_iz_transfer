@@ -222,7 +222,7 @@ class ProcessMonitor:
         Loads the existing process file into a DataFrame.
         """
         columns = self.get_columns()
-        dtype_dict = {column: 'boolean' if column in ['Copied', 'Received'] else 'str' for column in columns}
+        dtype_dict = {column: 'boolean' if column in ['Copied', 'Received'] else 'string' for column in columns}
 
         if self.use_mongodb:
             data = [row for row in self.mongodb_col.find({})]
@@ -267,9 +267,12 @@ class ProcessMonitor:
 
                 # One DataFrame row -> one MongoDB document.
                 records_df = records_df.reset_index()
-                records_df = records_df.where(pd.notnull(records_df), None)
                 records_df['date'] = save_date
                 records = records_df.to_dict(orient='records')
+                records = [
+                    {k: (None if pd.isnull(v) else v) for k, v in record.items()}
+                    for record in records
+                ]
 
                 # Keep save() semantics close to CSV overwrite.
                 self.mongodb_col.delete_many({})
