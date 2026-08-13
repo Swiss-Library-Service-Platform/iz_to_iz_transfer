@@ -1,20 +1,16 @@
 import logging
-from typing import Optional
 from copy import deepcopy
-from datetime import timedelta
-
-import pandas as pd
+from datetime import timedelta, timezone
 from almapiwrapper.inventory import Item, IzBib
-from almapiwrapper.users import User, Request
+from almapiwrapper.users import Request
 from almapiwrapper.record import JsonData
 from datetime import datetime
 
 from utils import xlstools
 from utils.processmonitoring import ProcessMonitor
 
-config = xlstools.get_config()
-
-def create_request(i: int, request_s: Request) -> Optional[Request]:
+@xlstools.with_fresh_config
+def create_request(i: int, request_s: Request, config: xlstools.Config) -> Request | None:
     """
     Creates a request in the destination IZ based on the provided Request object.
 
@@ -24,10 +20,12 @@ def create_request(i: int, request_s: Request) -> Optional[Request]:
         The index of the row in the process monitor DataFrame to process.
     request_s : Request
         The Request object containing the details of the request to be created.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
-    Optional[Request]
+    Request | None
         The created Request object if successful, or None if an error occurs.
     """
     process_monitor = ProcessMonitor()
@@ -38,13 +36,13 @@ def create_request(i: int, request_s: Request) -> Optional[Request]:
     if bib_s.error:
         logging.error(f"{repr(bib_s)}: {bib_s.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'NZ MMS ID not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     if nz_mms_id is None:
         logging.error(f"NZ MMS ID not found for {request_s.data['mms_id']}")
         process_monitor.df.at[i, 'Error'] = 'NZ MMS ID not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     bib_d = IzBib(nz_mms_id, zone=config['iz_d'], env=config['env'], from_nz_mms_id=True)
@@ -53,10 +51,10 @@ def create_request(i: int, request_s: Request) -> Optional[Request]:
     if bib_d.error:
         logging.error(f"{repr(bib_d)}: {bib_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Destination IZ Bib not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
-    data = deepcopy(request_s.data)
+    data = dict(deepcopy(request_s.data))
     data['pickup_location_library'] = config['lib_d']
 
     if 'barcode' in data:
@@ -66,7 +64,7 @@ def create_request(i: int, request_s: Request) -> Optional[Request]:
         if item_d.error:
             logging.error(f"{repr(item_d)}: {item_d.error_msg}")
             process_monitor.df.at[i, 'Error'] = 'Item not found'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             return None
 
         new_iz_item_id = item_d.item_id
@@ -80,7 +78,7 @@ def create_request(i: int, request_s: Request) -> Optional[Request]:
     del data['request_id']
     if 'booking_start_date' in data:
         start_date = datetime.strptime(data['booking_start_date'], '%Y-%m-%dT%H:%M:%SZ')
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if start_date < now:
             logging.warning(f"Booking start date {start_date} is in the past for request {data.get('request_id', 'unknown')}. Setting to now.")
             data['booking_start_date'] = now.strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -103,13 +101,13 @@ def create_request(i: int, request_s: Request) -> Optional[Request]:
             data["booking_end_date"] = max_end_date.strftime("%Y-%m-%dT%H:%M:%SZ")
             request_d = Request(data=JsonData(data), zone=config['iz_d'], env=config['env']).create()
             process_monitor.df.at[i, 'Error'] = 'Booking end date adjusted'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             logging.warning(f"{repr(request_d)}: Booking end date adjusted: from {end_date.strftime('%Y-%m-%dT%H:%M:%SZ')} to {data['booking_end_date']}")
 
     if request_d.error:
         logging.error(f"{repr(request_d)}: {request_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Request creation failed'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     return request_d

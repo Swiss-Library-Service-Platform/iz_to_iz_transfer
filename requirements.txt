@@ -3,7 +3,9 @@ lxml
 numpy
 openpyxl
 pandas
+pandas-stubs
 pytz
 requests
 urllib3
 python-dotenv
+pymongo

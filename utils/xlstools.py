@@ -1,11 +1,52 @@
+from __future__ import annotations
+
 import openpyxl
 import pandas as pd
 import os
+import sys
+from typing import Tuple, Optional, Any, Callable, TypeVar, TypedDict
+import logging
+from utils.settings import EXCEL_FORM_VERSION
+from functools import wraps
 
-from typing import Tuple, Optional
 
 # Global variable to store process configuration, it is initialized in set_config
-_config_cache = {}
+_config_cache: Config | None = None
+
+
+class Config(TypedDict):
+    iz_s: str
+    iz_d: str
+    lib_s: str
+    lib_d: str
+    env: str
+    circ_desk_s: str
+    circ_desk_d: str
+    old_prefix: bool
+    cancel_reason: str
+    cancel_note: str
+    acq_department: str
+    make_reception: bool
+    make_loans: bool
+    make_returns: bool
+    max_treatments: int
+    use_mongodb: bool
+    interested_users: list[str]
+    items_fields: dict[str, dict[str, list[str]]]
+    polines_fields: dict[str, list[str]]
+    locations_mapping: pd.DataFrame
+    vendors_mapping: pd.DataFrame
+    Funds_mapping: pd.DataFrame
+
+
+def is_form_valid(excel_filepath):
+    version = get_form_version(excel_filepath)
+    if not version or not isinstance(version, str) or not version.replace('.', '', 1).isdigit():
+        logging.critical(f"Invalid version format in the Excel file: {version}")
+        sys.exit(1)
+    elif version != EXCEL_FORM_VERSION:
+        logging.critical(f"Unsupported Excel form version: {version}. Expected version: {EXCEL_FORM_VERSION}")
+        sys.exit(1)
 
 
 def get_raw_filename(filepath: str) -> str:
@@ -65,7 +106,7 @@ def set_config(excel_filepath: str) -> None:
     wb.active = wb['General']
     sheet = wb.active
 
-    config = {
+    config: dict[str, Any] = {
         'iz_s': sheet.cell(row=6, column=2).value,
         'iz_d': sheet.cell(row=7, column=2).value,
         'lib_s': sheet.cell(row=8, column=2).value,
@@ -73,12 +114,15 @@ def set_config(excel_filepath: str) -> None:
         'env': {'Production': 'P', 'Sandbox': 'S'}.get(sheet.cell(row=10, column=2).value, 'P'),
         'circ_desk_s': sheet.cell(row=11, column=2).value,
         'circ_desk_d': sheet.cell(row=12, column=2).value,
-        'cancel_reason': sheet.cell(row=13, column=2).value,
-        'cancel_note': sheet.cell(row=14, column=2).value,
-        'acq_department': sheet.cell(row=15, column=2).value,
-        'make_reception': True if sheet.cell(row=16, column=2).value == 'Yes' else False,
-        'make_loans': True if sheet.cell(row=17, column=2).value == 'Yes' else False,
-        'make_returns': True if sheet.cell(row=18, column=2).value == 'Yes' else False,
+        'old_prefix': True if sheet.cell(row=13, column=2).value == 'Yes' else False,
+        'cancel_reason': sheet.cell(row=14, column=2).value,
+        'cancel_note': sheet.cell(row=15, column=2).value,
+        'acq_department': sheet.cell(row=16, column=2).value,
+        'make_reception': True if sheet.cell(row=17, column=2).value == 'Yes' else False,
+        'make_loans': True if sheet.cell(row=18, column=2).value == 'Yes' else False,
+        'make_returns': True if sheet.cell(row=19, column=2).value == 'Yes' else False,
+        'max_treatments': (lambda v: v if isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 10000 else 0)(sheet.cell(row=20, column=2).value),
+        'use_mongodb': True if sheet.cell(row=21, column=2).value == 'Yes' else False,
         'interested_users': [],
         'items_fields': {'src': {'to_delete': [], 'to_delete_if_error': []},
         'dest': {'to_delete': [], 'to_delete_if_error': []}},
@@ -86,30 +130,30 @@ def set_config(excel_filepath: str) -> None:
     }
 
     # Read items fields to delete from the Excel sheet
-    for i in range(21, 28):
-        key = sheet.cell(row=i, column=1).value
+    for i in range(24, 31):
+        key = sheet.cell(row=i, column=1).value.split(', ')
         value_src = sheet.cell(row=i, column=2).value
         value_dest = sheet.cell(row=i, column=3).value
 
         if value_src == 'Always delete':
-            config['items_fields']['src']['to_delete'] += key.split(', ')
+            config['items_fields']['src']['to_delete'] += key
         elif value_src == 'Delete if error':
-            config['items_fields']['src']['to_delete_if_error'] += key.split(', ')
+            config['items_fields']['src']['to_delete_if_error'] += key
 
         if value_dest == 'Always delete':
-            config['items_fields']['dest']['to_delete'] += key.split(', ')
+            config['items_fields']['dest']['to_delete'] += key
         elif value_dest == 'Delete if error':
-            config['items_fields']['dest']['to_delete_if_error'] += key.split(', ')
+            config['items_fields']['dest']['to_delete_if_error'] += key
 
     # Read polines fields to delete from the Excel sheet
-    for i in range(30, 31):
-        key = sheet.cell(row=i, column=1).value
+    for i in range(33, 34):
+        key = sheet.cell(row=i, column=1).value.split(', ')
         value = sheet.cell(row=i, column=3).value
 
         if value == 'Always delete':
-            config['polines_fields']['to_delete'] += key.split(', ')
+            config['polines_fields']['to_delete'] += key
         elif value == 'Delete if error':
-            config['polines_fields']['to_delete_if_error'] += key.split(', ')
+            config['polines_fields']['to_delete_if_error'] += key
 
 
     # Get Locations_mapping tab information
@@ -129,17 +173,30 @@ def set_config(excel_filepath: str) -> None:
 
     _config_cache = config
 
-def get_config() -> dict:
+def get_config() -> Config:
     """
     Returns the cached configuration dictionary.
 
     Returns
     -------
-    dict
+    Config
         Cached configuration dictionary.
     """
     global _config_cache
+    if _config_cache is None:
+        logging.critical("Configuration cache is empty. Call set_config() before get_config().")
+        sys.exit(1)
     return _config_cache
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def with_fresh_config(func: F) -> F:
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        kwargs["config"] = get_config()
+        return func(*args, **kwargs)
+    return wrapper
 
 def get_data(excel_filepath: str, sheet_name) -> pd.DataFrame:
     """

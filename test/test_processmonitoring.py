@@ -32,7 +32,7 @@ class TestProcessMonitor(unittest.TestCase):
         self.pm.save()
         self.pm.reset()
         self.pm2 = ProcessMonitor('test/test_data/test_data_IZ_to_IZ_1.xlsx', "PoLines")
-        self.assertTrue(self.pm2.check_existing_file())
+        self.assertTrue(self.pm2.check_existing_data())
         self.assertIsInstance(self.pm2.df, pd.DataFrame)
         self.assertEqual(self.pm2.df.iloc[0]['MMS_id_s'], '9972798270405504')
 

@@ -1,6 +1,4 @@
 import logging
-from typing import Optional
-
 import pandas as pd
 from almapiwrapper.inventory import Item
 from almapiwrapper.users import User, Loan
@@ -8,10 +6,8 @@ from almapiwrapper.users import User, Loan
 from utils import xlstools
 from utils.processmonitoring import ProcessMonitor
 
-config = xlstools.get_config()
-
-
-def create_loan(i: int) -> Optional[Loan]:
+@xlstools.with_fresh_config
+def create_loan(i: int, config: xlstools.Config) -> Loan | None:
     """
     Creates a loan for an item based on the index provided in the DataFrame.
     This function retrieves the source item using the MMS ID, Holding ID, and Item ID from the DataFrame,
@@ -21,6 +17,8 @@ def create_loan(i: int) -> Optional[Loan]:
     ----------
     i : int
         The index of the row in the process monitor DataFrame to process.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -52,14 +50,14 @@ def create_loan(i: int) -> Optional[Loan]:
     else:
         logging.error(f"Row {i}: Expected item information missing")
         process_monitor.df.at[i, 'Error'] = 'Expected item information missing'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     _ = item_d.data  # Fetch the item data
     if item_d.error:
         logging.error(f"{repr(item_d)}: {item_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Source Item not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     library_d = item_d.library
@@ -67,7 +65,7 @@ def create_loan(i: int) -> Optional[Loan]:
     if item_d.error:
         logging.error(f"{repr(item_d)}: {item_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Source Item not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     user_d = User(primary_id, zone=config['iz_d'], env=config['env'])
@@ -78,7 +76,8 @@ def create_loan(i: int) -> Optional[Loan]:
     return loan
 
 
-def make_return(i: int) -> Optional[Item]:
+@xlstools.with_fresh_config
+def make_return(i: int, config: xlstools.Config) -> Item | None:
     """
     Makes a return of an item based on the index provided in the DataFrame.
     This function retrieves the source item using the MMS ID, Holding ID, and Item ID from the DataFrame,
@@ -88,6 +87,8 @@ def make_return(i: int) -> Optional[Item]:
     ----------
     i : int
         The index of the row in the process monitor DataFrame to process.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -112,7 +113,7 @@ def make_return(i: int) -> Optional[Item]:
         if item_s.error:
             logging.error(f"{repr(item_s)}: {item_s.error_msg}")
             process_monitor.df.at[i, 'Error'] = 'Source Item not found'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             return None
     elif pd.notnull(mms_id_s) and pd.notnull(holding_id_s) and pd.notnull(item_id_s):
         # Create item object using MMS ID, Holding ID, and Item ID
@@ -121,7 +122,7 @@ def make_return(i: int) -> Optional[Item]:
     else:
         logging.error(f"Row {i}: Expected item information missing")
         process_monitor.df.at[i, 'Error'] = 'Expected item information missing'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # Return item
@@ -130,7 +131,7 @@ def make_return(i: int) -> Optional[Item]:
     if item_s.error:
         logging.error(f"{repr(item_s)}: {item_s.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Source Item not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     item_s = item_s.scan_in(library=library_s, circ_desk=config['circ_desk_s'])

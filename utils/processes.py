@@ -1,18 +1,16 @@
 import logging
-from http.cookiejar import user_domain_match
 
 import pandas as pd
 from almapiwrapper.acquisitions import POLine
-from almapiwrapper.inventory import IzBib, Holding, Item, Collection
-from almapiwrapper.users import User, Request
+from almapiwrapper.inventory import Holding, Collection
+from almapiwrapper.users import Request
 
 from utils import polines, bibs, holdings, items, xlstools, loans, requests
 from utils.processmonitoring import ProcessMonitor
 
-config = xlstools.get_config()
 
-
-def poline(i: int) -> None:
+@xlstools.with_fresh_config
+def poline(i: int, config: xlstools.Config) -> None:
     """
     Processes a single row in the process monitor DataFrame.
 
@@ -20,6 +18,8 @@ def poline(i: int) -> None:
     ----------
     i : int
         The index of the row to process.
+    config : dict
+        Runtime configuration injected by the decorator.
     """
     process_monitor = ProcessMonitor()
     holding_s = None
@@ -72,7 +72,7 @@ def poline(i: int) -> None:
 
         # Update the process monitor with the new holding ID
         process_monitor.set_corresponding_holding_id(holding_id_s, holding_id_d)
-        process_monitor.save()
+        process_monitor.save(rank=i)
 
     # if the destination holding is available, we retrieve the holding using the mms ID and holding ID
     elif item_id_d is None and pd.notnull(item_id_s):
@@ -81,7 +81,7 @@ def poline(i: int) -> None:
         if holding_d.error:
             logging.error(f"{repr(holding_d)}: {holding_d.error_msg}")
             process_monitor.df.at[i, 'Error'] = 'Destination Holding not found'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             return None
 
     # Check if the holding could be retrieved
@@ -96,7 +96,7 @@ def poline(i: int) -> None:
         error_msg = process_monitor.df.at[i, 'Error']
         if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
             process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # We check the purchase type of the PoLine
@@ -131,7 +131,7 @@ def poline(i: int) -> None:
             if pol_d.error:
                 logging.error(f"{repr(pol_d)}: {pol_d.error_msg}")
                 process_monitor.df.at[i, 'Error'] = 'Destination PoLine not found'
-                process_monitor.save()
+                process_monitor.save(rank=i)
                 return None
 
             item_d = items.handle_one_time_pol_items(i, holding_s, holding_d)
@@ -146,7 +146,7 @@ def poline(i: int) -> None:
         # If the purchase type is not continuous or one-time, we skip the item processing
         logging.warning(f"Unknown purchase type '{pol_purchase_type}' for row {i}, skipping item processing.")
         process_monitor.df.at[i, 'Error'] = 'Unknown purchase type'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     return None
@@ -185,7 +185,7 @@ def item(i: int) -> None:
     process_monitor.df.at[i, 'Item_id_s'] = item_id_s
     process_monitor.df.at[i, 'Holding_id_s'] = holding_id_s
     process_monitor.df.at[i, 'MMS_id_s'] = iz_mms_id_s
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
     # --------
     # Copy bib
@@ -203,7 +203,7 @@ def item(i: int) -> None:
             return None
 
     process_monitor.set_corresponding_mms_id(iz_mms_id_s, mms_id_d)
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
     # ------------
     # Copy holding
@@ -219,7 +219,7 @@ def item(i: int) -> None:
             return None
 
     process_monitor.set_corresponding_holding_id(holding_id_s, holding_id_d)
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
     # -------------
     # Copy the item
@@ -260,7 +260,7 @@ def holding(i: int) -> None:
 
     # we need to save the corresponding MMS ID
     process_monitor.set_corresponding_mms_id(iz_mms_id_s, mms_id_d)
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
     # ------------
     # Copy holding
@@ -278,12 +278,12 @@ def holding(i: int) -> None:
     error_msg = process_monitor.df.at[i, 'Error']
     if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
     return None
 
 
-def bib(i: int) -> None:
+def bibrec(i: int) -> None:
     """
     Processes a single row in the process monitor DataFrame for bib records.
 
@@ -318,12 +318,13 @@ def bib(i: int) -> None:
     error_msg = process_monitor.df.at[i, 'Error']
     if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
     return None
 
 
-def collection(i: int) -> None:
+@xlstools.with_fresh_config
+def collection(i: int, config: xlstools.Config) -> None:
     """
     Processes a single row in the process monitor DataFrame for collection records.
 
@@ -331,6 +332,8 @@ def collection(i: int) -> None:
     ----------
     i : int
         The index of the row to process.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -350,7 +353,7 @@ def collection(i: int) -> None:
     if col_s.error:
         logging.error(f"{repr(col_s)}: {col_s.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Source Collection not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # Get destination collection information
@@ -361,7 +364,7 @@ def collection(i: int) -> None:
     if col_d.error:
         logging.error(f"{repr(col_d)}: {col_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Destination Collection not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     mms_id_col_d = [bib.get_mms_id() for bib in bibs_d]
@@ -388,17 +391,18 @@ def collection(i: int) -> None:
         error_msg = process_monitor.df.at[i, 'Error']
         if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
             process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         logging.info(f'{repr(col_s)}: collection completed with {len(mms_id_col_d)} bibs')
     else:
         logging.error(f'{repr(col_s)}: collection not completed, {len(mms_id_col_d)} bibs copied out of {len(bibs_s)}')
         process_monitor.df.at[i, 'Error'] = 'Collection not completed'
-        process_monitor.save()
+        process_monitor.save(rank=i)
 
     return None
 
 
-def loan(i: int) -> None:
+@xlstools.with_fresh_config
+def loan(i: int, config: xlstools.Config) -> None:
     """
     Processes a single row in the process monitor DataFrame for loan records.
 
@@ -406,6 +410,8 @@ def loan(i: int) -> None:
     ----------
     i : int
         The index of the row to process.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -439,7 +445,7 @@ def loan(i: int) -> None:
             if loan_d is not None:
                 logging.error(f"{repr(loan_d)}: {loan_d.error_msg}")
             process_monitor.df.at[i, 'Error'] = 'Destination item not loaned'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             return None
         else:
             # If the loan was successful, we update the DataFrame
@@ -449,7 +455,7 @@ def loan(i: int) -> None:
                 process_monitor.df.at[i, 'Item_id_d'] = loan_d.data['item_id']
                 process_monitor.df.at[i, 'Holding_id_d'] = loan_d.data['holding_id']
                 process_monitor.df.at[i, 'MMS_id_d'] = loan_d.data['mms_id']
-            process_monitor.save()
+            process_monitor.save(rank=i)
 
     # -----------
     # Make return
@@ -470,7 +476,7 @@ def loan(i: int) -> None:
             if item_s is not None:
                 logging.error(f"{repr(item_s)}: {item_s.error_msg}")
             process_monitor.df.at[i, 'Error'] = 'Source item not returned'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             return None
         else:
             # If the return was successful, we update the DataFrame
@@ -480,19 +486,20 @@ def loan(i: int) -> None:
                 process_monitor.df.at[i, 'Item_id_s'] = item_s.get_item_id()
                 process_monitor.df.at[i, 'Holding_id_s'] = item_s.get_holding_id()
                 process_monitor.df.at[i, 'MMS_id_s'] = item_s.get_mms_id()
-            process_monitor.save()
+            process_monitor.save(rank=i)
 
     # If we reach this point, we have successfully processed the loan or return
     process_monitor.df.at[i, 'Copied'] = True
     error_msg = process_monitor.df.at[i, 'Error']
     if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
     return None
 
 
-def request(i: int) -> None:
+@xlstools.with_fresh_config
+def request(i: int, config: xlstools.Config) -> None:
     """
     Processes a single row in the process monitor DataFrame for request records.
 
@@ -500,6 +507,8 @@ def request(i: int) -> None:
     ----------
     i : int
         The index of the row to process.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -520,7 +529,7 @@ def request(i: int) -> None:
     if request_s.error:
         logging.error(f"{repr(request_s)}: {request_s.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Source Request not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # ------------------------------------
@@ -535,11 +544,11 @@ def request(i: int) -> None:
             else:
                 logging.error(f"Request with ID {request_id_s} could not be created.")
             process_monitor.df.at[i, 'Error'] = 'Source Request not created'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             return None
 
         process_monitor.df.at[i, 'Request_id_d'] = request_d.request_id
-        process_monitor.save()
+        process_monitor.save(rank=i)
 
     # ---------------------
     # Cancel source request
@@ -551,7 +560,7 @@ def request(i: int) -> None:
         if request_s.error:
             logging.error(f"{repr(request_s)}: {request_s.error_msg}")
             process_monitor.df.at[i, 'Error'] = 'Source Request not cancelled'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             return None
 
         # Mark the row as copied
@@ -559,6 +568,6 @@ def request(i: int) -> None:
         error_msg = process_monitor.df.at[i, 'Error']
         if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
             process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-        process_monitor.save()
+        process_monitor.save(rank=i)
 
     return None

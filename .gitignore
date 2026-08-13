@@ -2,6 +2,7 @@ log
 data
 records
 .idea
+.env
 lib
 nohup.out
 Scripts

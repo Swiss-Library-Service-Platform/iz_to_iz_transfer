@@ -8,60 +8,49 @@
 # To start the script:
 # python transfer_iz_to_iz_requests.py <dataForm.xlsx>
 
-EXCEL_FORM_VERSION = '7.0'
-
+from utils.settings import load_env
 import logging
 import sys
-
 from almapiwrapper.configlog import config_log
-from almapiwrapper.inventory import IzBib, Holding, Item
-from almapiwrapper.acquisitions import POLine, Vendor, Invoice, fetch_invoices
-import pandas as pd
-
-from utils import xlstools
-
-import os
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-if 'alma_api_keys' not in os.environ:
-    dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
-    load_dotenv(dotenv_path=dotenv_path)
-
-# Check if the correct number of arguments is provided
-if len(sys.argv) != 2:
-    print("Usage : python transfer_iz_to_iz_requests.py <dataForm.xlsx>")
-    sys.exit(1)
-
-excel_filepath = sys.argv[1]
-
-# Logging configuration
-log_filename = xlstools.get_raw_filename(excel_filepath)
-config_log(log_filename)
-
-logging.info(f'Requestss transfer from IZ to IZ started: {excel_filepath}')
-
-# Check version of the Excel form
-version = xlstools.get_form_version(excel_filepath)
-if not version or not isinstance(version, str) or not version.replace('.', '', 1).isdigit():
-    logging.critical(f"Invalid version format in the Excel file: {version}")
-    sys.exit(1)
-elif version != EXCEL_FORM_VERSION:
-    logging.critical(f"Unsupported Excel form version: {version}. Expected version: {EXCEL_FORM_VERSION}")
-    sys.exit(1)
-
-# load configuration
-xlstools.set_config(excel_filepath)
-
-from utils import processes
+from utils import xlstools, processes
 from utils.processmonitoring import ProcessMonitor
 
-# Initialize process monitor
-process_monitor = ProcessMonitor(excel_filepath, 'Requests')
 
-# Iterate over the PoLine numbers
-for i in process_monitor.df.index:
-    logging.info(f"Processing row {i} / {len(process_monitor.df.index)}: transfer request {process_monitor.df.at[i, 'Request_id_s']}")
-    processes.request(i)
+def main() -> None:
+    load_env()
 
-logging.info('Requests transfer from IZ to IZ terminated')
+    if len(sys.argv) != 2:
+        print("Usage : python transfer_iz_to_iz_requests.py <dataForm.xlsx>")
+        sys.exit(1)
+
+    excel_filepath = sys.argv[1]
+    log_filename = xlstools.get_raw_filename(excel_filepath)
+    config_log(log_filename)
+
+    logging.info(f"Requests transfer from IZ to IZ started: {excel_filepath}")
+
+    xlstools.is_form_valid(excel_filepath)
+    xlstools.set_config(excel_filepath)
+
+    config = xlstools.get_config()
+    process_monitor = ProcessMonitor(excel_filepath, "Requests")
+    nb_treatments = 0
+    index_rows = process_monitor.df.loc[~process_monitor.df["Copied"].fillna(False)].index.tolist()
+    for i in index_rows:
+        nb_treatments += 1
+        logging.info(
+            f"Processing {nb_treatments} / {config['max_treatments']} - "
+            f"row {i}: "
+            f"transfer request {process_monitor.df.at[i, 'Request_id_s']}"
+        )
+        processes.request(i)
+
+        if nb_treatments == config["max_treatments"]:
+            logging.info(f"Max number of treatments reached: {config['max_treatments']}")
+            break
+
+    logging.info("Requests transfer from IZ to IZ terminated")
+
+
+if __name__ == "__main__":
+    main()

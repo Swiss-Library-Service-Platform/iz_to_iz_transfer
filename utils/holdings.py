@@ -1,5 +1,5 @@
 from typing import Optional
-from almapiwrapper.inventory import IzBib, NzBib, Holding, Item, Collection
+from almapiwrapper.inventory import IzBib, Holding
 
 from utils import xlstools
 from utils.processmonitoring import ProcessMonitor
@@ -7,10 +7,9 @@ from copy import deepcopy
 
 import logging
 
-config = xlstools.get_config()
 
-
-def get_source_holding(i: int) -> Optional[Item]:
+@xlstools.with_fresh_config
+def get_source_holding(i: int, config: xlstools.Config) -> Optional[Holding]:
     """
     Retrieves the source holding based on the index provided in the DataFrame.
 
@@ -18,6 +17,8 @@ def get_source_holding(i: int) -> Optional[Item]:
     ----------
     i : int
         The index of the row to process in the DataFrame.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -36,7 +37,7 @@ def get_source_holding(i: int) -> Optional[Item]:
     if holding_s.error:
         logging.error(f"{repr(holding_s)}: {holding_s.error_msg}")
         process_monitor.df.loc[process_monitor.df['MMS_id_s'] == mms_id_s, 'Error'] = 'Source Holding not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # From the source holding, we get the library and location of the destination IZ according to the mapping
@@ -49,7 +50,8 @@ def get_source_holding(i: int) -> Optional[Item]:
     return holding_s
 
 
-def copy_holding_data(i: int, holding_s: Holding) -> Optional[Holding]:
+@xlstools.with_fresh_config
+def copy_holding_data(i: int, holding_s: Holding, config: xlstools.Config) -> Optional[Holding]:
     """
     Copies holding data from the source IZ to the destination IZ.
 
@@ -59,6 +61,8 @@ def copy_holding_data(i: int, holding_s: Holding) -> Optional[Holding]:
         The index of the row in the process monitor DataFrame.
     holding_s : Holding
         The source holding object containing the data to be copied.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -139,7 +143,8 @@ def copy_holding_data(i: int, holding_s: Holding) -> Optional[Holding]:
     return holding_d
 
 
-def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Optional[Holding]:
+@xlstools.with_fresh_config
+def copy_holding_to_destination_iz(i: int, bib_d: IzBib, config: xlstools.Config) -> Optional[Holding]:
     """
     Copies holding data from the source IZ to the destination IZ.
 
@@ -149,6 +154,8 @@ def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Optional[Holding]:
         The index of the row in the process monitor DataFrame.
     bib_d : IzBib
         The destination IZ Bib object. If None, it will be created based on the corresponding MMS ID.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -167,7 +174,7 @@ def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Optional[Holding]:
     if holding_s.error:
         logging.error(f"{repr(holding_s)}: {holding_s.error_msg}")
         process_monitor.df.loc[process_monitor.df['Holding_id_s'] == holding_id_s, 'Error'] = 'Source Holding not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # We need destination b to check if a corresponding holding already exists
@@ -178,7 +185,7 @@ def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Optional[Holding]:
     if bib_d.error:
         logging.error(f"{repr(bib_d)}: {bib_d.error_msg}")
         process_monitor.df.loc[process_monitor.df['MMS_id_s'] == mms_id_s, 'Error'] = 'Destination Bib not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # From the source holding, we get the library and location of the destination IZ according to the mapping
@@ -186,7 +193,7 @@ def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Optional[Holding]:
     if library_d is None or location_d is None:
         logging.error(f"{repr(holding_s)}: Library or location not found in destination IZ")
         process_monitor.df.loc[process_monitor.df['Holding_id_s'] == holding_id_s, 'Error'] = 'Library or location not found in destination IZ'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # Check if the callnumber exists already in destination holding
@@ -235,7 +242,7 @@ def copy_holding_to_destination_iz(i: int, bib_d: IzBib) -> Optional[Holding]:
         if holding_d.error:
             logging.error(f"{repr(holding_d)}: {holding_d.error_msg}")
             process_monitor.df.loc[process_monitor.df['Holding_id_s'] == holding_id_s, 'Error'] = 'Destination Holding not created'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             return None
 
     return holding_d

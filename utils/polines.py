@@ -2,17 +2,15 @@ import logging
 from copy import deepcopy
 
 from utils.processmonitoring import ProcessMonitor
-from utils import bibs, holdings, items, xlstools
+from utils import bibs, xlstools
 
-from almapiwrapper.acquisitions import POLine, Vendor, Invoice, fetch_invoices
+from almapiwrapper.acquisitions import POLine
 from almapiwrapper.users import User
 
 from typing import Optional
 
-config = xlstools.get_config()
-
-
-def copy_poline(i: int) -> Optional[POLine]:
+@xlstools.with_fresh_config
+def copy_poline(i: int, config: xlstools.Config) -> Optional[POLine]:
     """
     Copies a PoLine from the source to the destination based on the provided index and configuration.
 
@@ -20,6 +18,8 @@ def copy_poline(i: int) -> Optional[POLine]:
     ----------
     i : int
         The index of the row to process.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -41,7 +41,7 @@ def copy_poline(i: int) -> Optional[POLine]:
     if pol_s.error:
         logging.error(f"{repr(pol_s)}: {pol_s.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'POLine not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # Check if the source PoLine has the expected MMS ID according to the Excel sheet
@@ -49,7 +49,7 @@ def copy_poline(i: int) -> Optional[POLine]:
         logging.error(f"{repr(pol_number_s)}: {pol_s.data['resource_metadata']['mms_id']['value']}"
                       f"does not match the expected provided MMS ID {mms_id_s}")
         process_monitor.df.at[i, 'Error'] = 'MMS ID mismatch'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # get the purchase type of the PoLine
@@ -65,7 +65,7 @@ def copy_poline(i: int) -> Optional[POLine]:
         return None
 
     process_monitor.set_corresponding_mms_id(mms_id_s, mms_id_d)
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
     # ---------------------------
     # Prepare the new PoLine data
@@ -80,7 +80,7 @@ def copy_poline(i: int) -> Optional[POLine]:
         if library_d is None or location_d is None:
             logging.error(f"{repr(pol_s)}: Location not found in mapping for library {library_s} and location {location_s}.")
             process_monitor.df.at[i, 'Error'] = 'Mapping: location not found'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             return None
 
         locations.append({
@@ -104,7 +104,7 @@ def copy_poline(i: int) -> Optional[POLine]:
     if library_d is None:
         logging.error(f"{repr(pol_s)}: Library not found in mapping for library {pol_data['owner']['value']}.")
         process_monitor.df.at[i, 'Error'] = 'Mapping: library not found'
-        process_monitor.save()
+        process_monitor.rank=i
         return None
     pol_data['owner']['value'] = library_d
 
@@ -115,7 +115,7 @@ def copy_poline(i: int) -> Optional[POLine]:
         if fund_code_d is None:
             logging.error(f"{repr(pol_s)}: Fund code not found in mapping for fund {fund['fund_code']['value']}.")
             process_monitor.df.at[i, 'Error'] = 'Mapping: fund code not found'
-            process_monitor.save()
+            process_monitor.save(rank=i)
             return None
 
         fund['fund_code']['value'] = fund_code_d
@@ -130,7 +130,7 @@ def copy_poline(i: int) -> Optional[POLine]:
         logging.error(f"{repr(pol_s)}: Vendor or vendor account not found in mapping for vendor {pol_data['vendor']['value']} "
                       f"and account {pol_data['vendor_account']}.")
         process_monitor.df.at[i, 'Error'] = 'Mapping: vendor or vendor account not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
     pol_data['vendor']['value'] = vendor_code_d
     pol_data['vendor_account'] = vendor_account_d
@@ -143,7 +143,7 @@ def copy_poline(i: int) -> Optional[POLine]:
     pol_data = handle_interested_users(pol_data)
     if pol_data is None:
         process_monitor.df.at[i, 'Error'] = 'Interested user not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # ---------------------
@@ -155,17 +155,18 @@ def copy_poline(i: int) -> Optional[POLine]:
     if pol_d.error:
         logging.error(f"{repr(pol_d)}: {pol_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'POLine not created'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # Update the process monitor with the new PoLine number
     process_monitor.set_corresponding_poline(pol_number_s, pol_d.pol_number, pol_purchase_type)
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
     return pol_d
 
 
-def handle_interested_users(pol_data: dict) -> Optional[dict]:
+@xlstools.with_fresh_config
+def handle_interested_users(pol_data: dict, config: xlstools.Config) -> dict | None:
     """
     Handle interested users for the PoLine. The system will copy the
     interested users from the source PoLine to the destination PoLine and
@@ -178,10 +179,12 @@ def handle_interested_users(pol_data: dict) -> Optional[dict]:
     ----------
     pol_data : dict
         The PoLine data dictionary.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
-    Optional[dict]
+    dict | None
         The updated PoLine data dictionary with interested users, or None if an error occurs.
     """
     interested_users = []

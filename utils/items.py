@@ -1,5 +1,5 @@
 from typing import Optional
-from almapiwrapper.inventory import IzBib, NzBib, Holding, Item, Collection
+from almapiwrapper.inventory import Holding, Item
 from almapiwrapper.acquisitions import POLine
 import time
 
@@ -11,10 +11,10 @@ import pandas as pd
 
 import logging
 
-config = xlstools.get_config()
 
 
-def get_source_item_using_barcode(i: int) -> Optional[Item]:
+@xlstools.with_fresh_config
+def get_source_item_using_barcode(i: int, config: xlstools.Config) -> Optional[Item]:
     """
     Retrieves the source item based on the index provided in the DataFrame.
 
@@ -22,6 +22,8 @@ def get_source_item_using_barcode(i: int) -> Optional[Item]:
     ----------
     i : int
         The index of the row to process in the DataFrame.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -44,7 +46,7 @@ def get_source_item_using_barcode(i: int) -> Optional[Item]:
         if item_d_test.error is False and item_s_test.error is False:
             error_label = 'Item exists in the dest IZ and barcode of source record updated'
 
-        elif item_d_test.error is False:
+        elif not item_d_test.error:
             error_label = 'Barcode already exists in the destination IZ'
 
         else:
@@ -52,13 +54,14 @@ def get_source_item_using_barcode(i: int) -> Optional[Item]:
 
         logging.error(f"{repr(item_s)}: {item_s.error_msg}")
         process_monitor.df.at[i, 'Error'] = error_label
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     return item_s
 
 
-def copy_item_to_destination_iz(i, poline: bool = False) -> Optional[Item]:
+@xlstools.with_fresh_config
+def copy_item_to_destination_iz(i, poline: bool = False, config: Optional[xlstools.Config] = None) -> Optional[Item]:
     """
     Copies an item from the source IZ to the destination IZ based on the provided index and configuration.
     This function retrieves the source item, updates its library and location according to the destination IZ,
@@ -71,6 +74,8 @@ def copy_item_to_destination_iz(i, poline: bool = False) -> Optional[Item]:
         The index of the row to process in the DataFrame.
     poline : bool, optional
         If True, the function will also handle the PoLine information for the item.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -105,7 +110,7 @@ def copy_item_to_destination_iz(i, poline: bool = False) -> Optional[Item]:
     if item_s.error:
         logging.error(f"{repr(item_s)}: {item_s.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Source Item not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # Update the item data with the destination library and location
@@ -115,7 +120,7 @@ def copy_item_to_destination_iz(i, poline: bool = False) -> Optional[Item]:
     if library_d is None or location_d is None:
         logging.error(f"{repr(item_s)}: Library or location not found in destination IZ")
         process_monitor.df.at[i, 'Error'] = 'Library or location not found in destination IZ'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     item_data.find('.//item_data/library').text = library_d
@@ -135,7 +140,7 @@ def copy_item_to_destination_iz(i, poline: bool = False) -> Optional[Item]:
             received = True
 
         process_monitor.df.at[i, 'Received'] = received
-        process_monitor.save()
+        process_monitor.save(rank=i)
 
     # Clean the item fields before creating the item in the destination IZ
     item_data = clean_item_fields(item_data, rec_loc='dest', retry=False)
@@ -151,7 +156,7 @@ def copy_item_to_destination_iz(i, poline: bool = False) -> Optional[Item]:
     if item_d.error:
         logging.error(f"{repr(item_d)}: {item_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Destination Item not created'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     process_monitor.set_corresponding_item_id(item_s.item_id, item_d.item_id)
@@ -159,19 +164,22 @@ def copy_item_to_destination_iz(i, poline: bool = False) -> Optional[Item]:
     error_msg = process_monitor.df.at[i, 'Error']
     if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
-    update_source_item(item_s)
+    # Add "OLD_" prefix to the source item
+    if config['old_prefix']:
+        update_source_item(item_s)
 
-    if item_s.error:
-        logging.error(f"{repr(item_s)}: failed to update barcode of source record: {item_s.error_msg}")
-        process_monitor.df.at[i, 'Error'] = 'Failed to update source item barcode'
-        return None
+        if item_s.error:
+            logging.error(f"{repr(item_s)}: failed to update barcode of source record: {item_s.error_msg}")
+            process_monitor.df.at[i, 'Error'] = 'Failed to update source item barcode'
+            return None
 
     return item_d
 
 
-def clean_item_fields(item_data: etree.Element, rec_loc: str, retry: bool = False) -> etree.Element:
+@xlstools.with_fresh_config
+def clean_item_fields(item_data: etree.Element, rec_loc: str, retry: bool = False, config: Optional[xlstools.Config] = None) -> etree.Element:
     """
     Cleans the fields of an item by removing unwanted characters and formatting.
 
@@ -185,6 +193,8 @@ def clean_item_fields(item_data: etree.Element, rec_loc: str, retry: bool = Fals
     retry : bool, optional
         If True, the function will clean fields that can be cleaned in case
         of error.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -250,7 +260,8 @@ def update_source_item(item_s: Item) -> Optional[Item]:
     return item_s
 
 
-def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding) -> Optional[Item]:
+@xlstools.with_fresh_config
+def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding, config: xlstools.Config) -> Optional[Item]:
     """
     Retrieves the destination item from the holding based on the index provided in the DataFrame.
 
@@ -262,6 +273,8 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding) ->
         The source holding object from which to retrieve the item.
     holding_d : Holding
         The destination holding object where the item will be copied.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -295,13 +308,13 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding) ->
         # No matching item found in source holding
         logging.error(f"Item with ID {item_id_s} not found in source holding {holding_s.holding_id}")
         process_monitor.df.at[i, 'Error'] = 'Item not found in source holding'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
     elif index >= len(items_d):
         # Not enough items in destination holding to match source item
         logging.error(f"Not enough items in destination holding {holding_s.holding_id} to match source item {item_id_s}")
         process_monitor.df.at[i, 'Error'] = 'Not enough items in destination holding'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     item_s = items_s[index]
@@ -321,13 +334,13 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding) ->
     if item_d.error:
         logging.error(f"{repr(item_d)}: {item_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Failed to update destination item'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # Get the arrival date and expected arrival date from the source item
     arrival_date = item_d.data.find('.//arrival_date')
     expected_arrival_date = item_d.data.find('.//expected_arrival_date')
-    process_type = item_d.data.find('.//process_type')
+    # process_type = item_d.data.find('.//process_type')
 
     # Determine if the item is received based on the arrival date and expected arrival date
     if arrival_date is None and expected_arrival_date is not None:
@@ -342,20 +355,23 @@ def handle_one_time_pol_items(i: int, holding_s: Holding, holding_d: Holding) ->
         error_msg = process_monitor.df.at[i, 'Error']
         if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
             process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-    process_monitor.save()
+    process_monitor.save(rank=i)
 
-    update_source_item(item_s)
+    # Add "OLD_" prefix to the source item
+    if config['old_prefix']:
+        update_source_item(item_s)
 
-    if item_s.error:
-        logging.error(f"{repr(item_s)}: failed to update barcode of source record: {item_s.error_msg}")
-        process_monitor.df.at[i, 'Error'] = 'Failed to update source item barcode'
-        process_monitor.save()
-        return None
+        if item_s.error:
+            logging.error(f"{repr(item_s)}: failed to update barcode of source record: {item_s.error_msg}")
+            process_monitor.df.at[i, 'Error'] = 'Failed to update source item barcode'
+            process_monitor.save(rank=i)
+            return None
 
     return item_d
 
 
-def make_reception(i: int) -> Optional[POLine]:
+@xlstools.with_fresh_config
+def make_reception(i: int, config: xlstools.Config) -> Optional[POLine]:
     """
     Makes a reception for the item based on the index provided in the DataFrame.
 
@@ -363,6 +379,8 @@ def make_reception(i: int) -> Optional[POLine]:
     ----------
     i : int
         The index of the row to process in the DataFrame.
+    config : dict
+        Runtime configuration injected by the decorator.
 
     Returns
     -------
@@ -389,7 +407,7 @@ def make_reception(i: int) -> Optional[POLine]:
     if item_s.error:
         logging.error(f"{repr(item_s)}: {item_s.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Source Item not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     item_d = Item(mms_id_d, holding_id_d, item_id_d, zone=config['iz_d'], env=config['env'])
@@ -397,7 +415,7 @@ def make_reception(i: int) -> Optional[POLine]:
     if item_d.error:
         logging.error(f"{repr(item_d)}: {item_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Destination Item not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     pol_d = POLine(pol_number_d, zone=config['iz_d'], env=config['env'])
@@ -405,7 +423,7 @@ def make_reception(i: int) -> Optional[POLine]:
     if pol_d.error:
         logging.error(f"{repr(pol_d)}: {pol_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Destination PoLine not found'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     # If the item is received, we set the receive date to the arrival date
@@ -423,11 +441,12 @@ def make_reception(i: int) -> Optional[POLine]:
     if pol_d.error:
         logging.error(f"{repr(pol_d)}: {pol_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Failed to receive item in PoLine'
-        process_monitor.save()
+        process_monitor.save(rank=i)
         return None
 
     process_monitor.df.at[i, 'Copied'] = True
     error_msg = process_monitor.df.at[i, 'Error']
     if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-    process_monitor.save()
+    process_monitor.save(rank=i)
+    return pol_d

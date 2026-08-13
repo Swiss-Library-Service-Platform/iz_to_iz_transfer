@@ -1,12 +1,14 @@
 import logging
 import os
 import sys
-from typing import List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import List, Optional
 
 import pandas as pd
-
+from pymongo import MongoClient
+import pymongo
+from pymongo.errors import AutoReconnect, ServerSelectionTimeoutError
 from utils import xlstools
-
 
 class ProcessMonitor:
     """
@@ -35,6 +37,7 @@ class ProcessMonitor:
         DataFrame containing the process data, or None if not loaded/created yet.
     """
     _instance = None
+    _mongo_client: Optional[MongoClient] = None
 
     def __new__(cls, *args, **kwargs):
         """
@@ -45,27 +48,44 @@ class ProcessMonitor:
 
         return cls._instance
 
-    def __init__(self, excel_filepath: Optional[str] = None, process_type: Optional[str] = None) -> None:
+    def __init__(self, excel_filepath=None, process_type=None) -> None:
         """
         Initializes the ProcessMonitor with the given Excel file path and process type.
+
+        Parameters
+        ----------
+        excel_filepath : str
+            Path to the Excel file containing configuration data.
+        process_type : str
+            Type of process to monitor.
         """
         if not hasattr(self, '_initialized'):
+            config = xlstools.get_config()
+            if excel_filepath is None or process_type is None:
+                logging.critical("ProcessMonitor requires excel_filepath and process_type for initialization.")
+                sys.exit(1)
             self.excel_filepath = excel_filepath
             self.process_type = process_type
             self.file_path = self.get_file_path(excel_filepath)
-            self.df = None
+            self.use_mongodb = config.get('use_mongodb', False)
+            if self.use_mongodb:
+                self.mongodb_col = self.initiate_mongodb_col()
 
-            if self.check_existing_file():
+            self.df = pd.DataFrame({})
+
+            # Check if process data is already existing
+            if self.check_existing_data():
                 self.load()
             else:
                 self.create()
 
             # Ensure the DataFrame is not None and has data
-            if self.df is None or self.df.empty:
+            if self.df.empty:
                 logging.critical(f'Process file {self.file_path} is empty or not loaded correctly.')
                 sys.exit(1)
 
-            self.df.index = range(1, len(self.df) + 1)  # Reset index to start from 1
+            if not self.use_mongodb:
+                self.df.index = range(1, len(self.df) + 1)  # Reset index to start from 1
 
             self._initialized = True  # Mark the instance as initialized
 
@@ -113,16 +133,77 @@ class ProcessMonitor:
             logging.critical(f'Unknown process type: {self.process_type}')
             sys.exit(1)
 
-    def check_existing_file(self) -> bool:
+    def _reset_mongo_client(self) -> None:
+        if self._mongo_client is not None:
+            try:
+                self._mongo_client.close()
+            finally:
+                self._mongo_client = None
+
+    def _get_mongo_client(self) -> MongoClient:
+        if self._mongo_client is None:
+            uri = os.environ.get('MONGODB_URI_IZ_TO_IZ')
+            if not uri:
+                logging.critical("Missing env var MONGODB_URI_IZ_TO_IZ")
+                sys.exit(1)
+
+            self._mongo_client = MongoClient(
+                uri,
+                serverSelectionTimeoutMS=5000,
+                connectTimeoutMS=5000,
+                socketTimeoutMS=10000,
+                retryWrites=True
+            )
+
+        self._mongo_client.admin.command("ping")
+
+        return self._mongo_client
+
+
+    def initiate_mongodb_col(self) -> pymongo.collection.Collection:
         """
-        Checks if the process file already exists.
+
+        Returns
+        -------
+        pymongo.collection.Collection
+            MongoDB collection used to store processing rows.
+        """
+        config = xlstools.get_config()
+        db_name = f'{config["iz_d"]}_{config["lib_d"]}'
+        col_name = f'{db_name}_{self.process_type}_processing'
+
+        try:
+            self._reset_mongo_client()
+            client = self._get_mongo_client()
+            return client[db_name][col_name]
+        except (AutoReconnect, ServerSelectionTimeoutError) as e:
+            logging.warning(f"Mongo timeout/reconnect needed: {e}")
+            self._reset_mongo_client()
+            client = self._get_mongo_client()  # retry unique
+            return client[db_name][col_name]
+        except Exception as e:
+            logging.critical(f"Error connecting to MongoDB: {e}")
+            sys.exit(1)
+
+    def check_existing_data(self) -> bool:
+        """
+        Checks if the process data already exists.
+
+        It checks MongoDB and file data
 
         Returns
         -------
         bool
             True if the file exists, False otherwise.
         """
-        return os.path.isfile(self.file_path)
+        if self.use_mongodb:
+            try:
+                return self.mongodb_col.find_one({}, {"_id": 1}) is not None
+            except Exception as e:
+                logging.critical(f"Error connecting to MongoDB: {e}")
+                sys.exit(1)
+        else:
+            return os.path.isfile(self.file_path)
 
     def create(self) -> None:
         """
@@ -132,6 +213,8 @@ class ProcessMonitor:
         self.df = pd.DataFrame(columns=cols)
         os.makedirs('data', exist_ok=True)
         self.load_data_from_excel()
+        if self.df is not None:
+            self.df['Copied'] = False
         self.save()
 
     def load(self) -> None:
@@ -141,23 +224,81 @@ class ProcessMonitor:
         columns = self.get_columns()
         dtype_dict = {column: 'boolean' if column in ['Copied', 'Received'] else 'str' for column in columns}
 
-        try:
-            self.df = pd.read_csv(self.file_path, dtype=dtype_dict)
-        except FileNotFoundError:
-            logging.critical(f"File not found: {self.file_path}")
-            sys.exit(1)
-        except pd.errors.ParserError as e:
-            logging.critical(f"CSV parsing error: {self.file_path}: {e}")
-            sys.exit(1)
-        except ValueError as e:
-            logging.critical(f"Data type error (dtype): {self.file_path}: {e}")
-            sys.exit(1)
+        if self.use_mongodb:
+            data = [row for row in self.mongodb_col.find({})]
+            dtype_dict['Rank'] = 'int'
+            columns.append('Rank')
 
-    def save(self) -> None:
+            self.df = pd.DataFrame(data=data, columns=columns)
+
+            for col, dtype in dtype_dict.items():
+                if col in self.df.columns:
+                    self.df[col] = self.df[col].astype(dtype)
+            self.df.set_index('Rank', inplace=True)
+            self.load_data_from_excel()
+            self.save()
+
+        else:
+
+            try:
+                self.df = pd.read_csv(self.file_path, dtype=dtype_dict)
+            except FileNotFoundError:
+                logging.critical(f"File not found: {self.file_path}")
+                sys.exit(1)
+            except pd.errors.ParserError as e:
+                logging.critical(f"CSV parsing error: {self.file_path}: {e}")
+                sys.exit(1)
+            except ValueError as e:
+                logging.critical(f"Data type error (dtype): {self.file_path}: {e}")
+                sys.exit(1)
+
+    def save(self, rank: Optional[int] = None) -> None:
         """
         Saves the current DataFrame to the process file.
         """
-        self.df.to_csv(self.file_path, index=False)
+        if self.use_mongodb:
+            save_date = datetime.now(timezone.utc)
+            if rank is None:
+                self.df.index = range(1, len(self.df) + 1)  # Reset index to start from 1
+
+                records_df = self.df.copy()
+                if records_df.index.name != 'Rank':
+                    records_df.index.name = 'Rank'
+
+                # One DataFrame row -> one MongoDB document.
+                records_df = records_df.reset_index()
+                records_df = records_df.where(pd.notnull(records_df), None)
+                records_df['date'] = save_date
+                records = records_df.to_dict(orient='records')
+
+                # Keep save() semantics close to CSV overwrite.
+                self.mongodb_col.delete_many({})
+                if records:
+                    self.mongodb_col.insert_many(records)
+            else:
+                record = self.df.loc[rank].to_dict()
+                record['Rank'] = rank
+                record = {k: (v if pd.notnull(v) else None) for k, v in record.items()}
+                record['date'] = save_date
+                try:
+                    self.mongodb_col.replace_one({'Rank': rank}, record)
+                except Exception as e:
+                    logging.error(f"Record with rank {rank} not found, error: {e}")
+
+        else:
+            self.df.to_csv(self.file_path, index=False)
+
+    def _update_many_mongodb(self, source_field: str, source_value: str, payload: dict) -> None:
+        """Applies a MongoDB update_many when MongoDB backend is enabled."""
+        if not self.use_mongodb:
+            return
+
+        try:
+            self.mongodb_col.update_many({source_field: source_value}, {'$set': payload})
+        except Exception as e:
+            logging.error(
+                f"MongoDB bulk update failed on {source_field}={source_value} with payload {payload}: {e}"
+            )
 
     def load_data_from_excel(self) -> None:
         """
@@ -173,9 +314,13 @@ class ProcessMonitor:
         data = pd.read_excel(self.excel_filepath, sheet_name=self.process_type, dtype=str)
         data.columns = self.get_columns()[:len(data.columns)]
         self.df = pd.concat([self.df, data], ignore_index=True)
-        self.df['Copied'] = False
+        self.df = self.df.drop_duplicates(subset=data.columns.tolist(), keep='first')
+        if 'Copied' in self.df.columns:
+            self.df['Copied'] = self.df['Copied'].fillna(False)
 
-    def get_corresponding_poline(self, pol_number: str) -> Tuple[Optional[str], Optional[str]]:
+
+
+    def get_corresponding_poline(self, pol_number: str) -> tuple[str | None, str | None]:
         """
         Returns the destination PoLine number and purchase type for the given source PoLine number.
 
@@ -186,7 +331,7 @@ class ProcessMonitor:
 
         Returns
         -------
-        Tuple[Optional[str], Optional[str]]
+        tuple[str | None, str | None]
             The destination PoLine number and purchase type if found, otherwise None.
         """
         if self.process_type != 'PoLines':
@@ -203,7 +348,7 @@ class ProcessMonitor:
         else:
             return None, None
 
-    def get_corresponding_mms_id(self, mms_id: str) -> Optional[str]:
+    def get_corresponding_mms_id(self, mms_id: str) -> str | None:
         """
         Returns the DataFrame row corresponding to the given MMS ID.
 
@@ -214,14 +359,14 @@ class ProcessMonitor:
 
         Returns
         -------
-        Optional[str]
+        str | None
             The corresponding MMS ID if found, otherwise None.
         """
         result = self.df.loc[self.df['MMS_id_s'] == mms_id, 'MMS_id_d']
         value = result.values[0] if len(result) > 0 else None
         return None if pd.isnull(value) else value
 
-    def get_corresponding_holding_id(self, holding_id: str) -> Optional[str]:
+    def get_corresponding_holding_id(self, holding_id: str) -> str | None:
         """
         Returns the DataFrame row corresponding to the given Holding ID.
 
@@ -232,7 +377,7 @@ class ProcessMonitor:
 
         Returns
         -------
-        Optional[str]
+        str | None
             The corresponding Holding ID if found, otherwise None.
         """
 
@@ -240,7 +385,7 @@ class ProcessMonitor:
         value = result.values[0] if len(result) > 0 else None
         return None if pd.isnull(value) else value
 
-    def get_corresponding_item_id(self, item_id: str) -> Optional[str]:
+    def get_corresponding_item_id(self, item_id: str) -> str | None:
         """
         Returns the DataFrame row corresponding to the given Item ID.
 
@@ -251,7 +396,7 @@ class ProcessMonitor:
 
         Returns
         -------
-        Optional[str]
+        str | None
             The corresponding Item ID if found, otherwise None.
         """
 
@@ -278,6 +423,7 @@ class ProcessMonitor:
 
         self.df.loc[self.df['PoLine_s'] == pol_number, 'PoLine_d'] = poline_d
         self.df.loc[self.df['PoLine_s'] == pol_number, 'Purchase_type'] = purchase_type
+        self._update_many_mongodb('PoLine_s', pol_number, {'PoLine_d': poline_d, 'Purchase_type': purchase_type})
 
     def set_corresponding_mms_id(self, mms_id_s: str, mms_id_d: str) -> None:
         """
@@ -291,6 +437,7 @@ class ProcessMonitor:
             The destination MMS ID to set.
         """
         self.df.loc[self.df['MMS_id_s'] == mms_id_s, 'MMS_id_d'] = mms_id_d
+        self._update_many_mongodb('MMS_id_s', mms_id_s, {'MMS_id_d': mms_id_d})
 
     def set_corresponding_holding_id(self, holding_id_s: str, holding_id_d: str) -> None:
         """
@@ -304,6 +451,7 @@ class ProcessMonitor:
             The destination Holding ID to set.
         """
         self.df.loc[self.df['Holding_id_s'] == holding_id_s, 'Holding_id_d'] = holding_id_d
+        self._update_many_mongodb('Holding_id_s', holding_id_s, {'Holding_id_d': holding_id_d})
 
     def set_corresponding_item_id(self, item_id_s: str, item_id_d: str) -> None:
         """
@@ -317,6 +465,7 @@ class ProcessMonitor:
             The destination Item ID to set.
         """
         self.df.loc[self.df['Item_id_s'] == item_id_s, 'Item_id_d'] = item_id_d
+        self._update_many_mongodb('Item_id_s', item_id_s, {'Item_id_d': item_id_d})
 
     @classmethod
     def reset(cls):
