@@ -37,6 +37,7 @@ def copy_bib_from_nz_to_dest_iz(iz_mms_id_s: str, config: xlstools.Config) -> Iz
     if iz_bib_s.error:
         logging.error(f"{repr(iz_bib_s)}: {iz_bib_s.error_msg}")
         process_monitor.df.loc[process_monitor.df['MMS_id_s'] == iz_mms_id_s, 'Error'] = 'Source IZ Bib not found'
+        process_monitor.save(rank=i)
         return None
 
     # We make a copy of the local source record if it is not linked to the NZ
