@@ -28,15 +28,20 @@ def main() -> None:
     log_filename = xlstools.get_raw_filename(excel_filepath)
     config_log(log_filename)
 
-    logging.info(f"Holdings transfer from IZ to IZ started: {excel_filepath}")
+    logging.info(f"Holdings records transfer from IZ to IZ started: {excel_filepath}")
 
     xlstools.is_form_valid(excel_filepath)
     xlstools.set_config(excel_filepath)
 
     config = xlstools.get_config()
     process_monitor = ProcessMonitor(excel_filepath, "Holdings")
+
     nb_treatments = 0
     index_rows = process_monitor.df.loc[~process_monitor.df["Copied"].fillna(False)].index.tolist()
+
+    if len(index_rows) < config["max_treatments"]:
+        config["max_treatments"] = len(index_rows)
+
     for i in index_rows:
         nb_treatments += 1
         logging.info(

@@ -242,9 +242,9 @@ def holding(i: int) -> None:
         # If the row is already copied, we skip it
         return None
 
-    # --------
-    # Copy bib
-    # --------
+    # ---------------
+    # Copy bib record
+    # ---------------
     iz_mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
     holding_id_s = process_monitor.df.at[i, 'Holding_id_s']
     bib_d = None
@@ -301,6 +301,10 @@ def bibrec(i: int) -> None:
     if process_monitor.df.at[i, 'Copied']:
         # If the row is already copied, we skip it
         return None
+
+    # ---------------
+    # Copy bib record
+    # ---------------
 
     iz_mms_id_s = process_monitor.df.at[i, 'MMS_id_s']
 

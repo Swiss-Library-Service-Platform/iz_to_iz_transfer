@@ -170,6 +170,7 @@ def copy_holding_to_destination_iz(i: int, bib_d: IzBib, config: xlstools.Config
     holding_id_s = process_monitor.df.at[i, 'Holding_id_s']
 
     holding_s = Holding(mms_id_s, holding_id_s, zone=config['iz_s'], env=config['env'])
+    _ = holding_s.data
 
     if holding_s.error:
         logging.error(f"{repr(holding_s)}: {holding_s.error_msg}")
