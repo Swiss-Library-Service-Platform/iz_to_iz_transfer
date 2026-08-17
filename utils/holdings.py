@@ -209,7 +209,13 @@ def copy_holding_to_destination_iz(i: int, bib_d: IzBib, config: xlstools.Config
 
     # Check if exists a destination holding with the same callnumber
     for holding in bib_d.get_holdings():
+
         callnumber_d = holding.callnumber
+
+        if holding.error:
+            logging.warning(f'{repr(holding_s)}: holding {holding.holding_id} linked to the same bib record not found {holding.error_msg}')
+            continue
+
 
         # Suppress empty chars from call numbers
         if callnumber_d is not None:

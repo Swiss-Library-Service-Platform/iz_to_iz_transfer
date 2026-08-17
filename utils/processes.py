@@ -202,6 +202,7 @@ def item(i: int) -> None:
             # If the destination bib could not be created, we skip the row
             return None
 
+    # we need to save the corresponding MMS ID
     process_monitor.set_corresponding_mms_id(iz_mms_id_s, mms_id_d)
     process_monitor.save(rank=i)
 
@@ -254,6 +255,7 @@ def holding(i: int) -> None:
     if mms_id_d is None:
         bib_d = bibs.copy_bib_from_nz_to_dest_iz(iz_mms_id_s)
         mms_id_d = bib_d.get_mms_id() if bib_d else None
+
         if mms_id_d is None:
             # If the destination bib could not be created, we skip the row
             return None
@@ -270,6 +272,7 @@ def holding(i: int) -> None:
         # Copy the holding data from the source to the destination IZ
         holding_d = holdings.copy_holding_to_destination_iz(i, bib_d)
         holding_id_d = holding_d.get_holding_id() if holding_d else None
+
         if holding_id_d is None:
             return None
 

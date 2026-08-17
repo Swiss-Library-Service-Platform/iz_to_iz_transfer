@@ -36,6 +36,10 @@ def main() -> None:
 
     nb_treatments = 0
     index_rows = process_monitor.df.loc[~process_monitor.df["Copied"].fillna(False)].index.tolist()
+
+    if len(index_rows) < config["max_treatments"]:
+        config["max_treatments"] = len(index_rows)
+
     for i in index_rows:
         nb_treatments += 1
         logging.info(
@@ -44,6 +48,7 @@ def main() -> None:
         )
 
         processes.item(i)
+
         if nb_treatments == config['max_treatments']:
             logging.info(f"Max number of treatments reached: {config['max_treatments']}")
             break

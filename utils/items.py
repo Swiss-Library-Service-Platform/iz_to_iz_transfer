@@ -2,6 +2,7 @@ from typing import Optional
 from almapiwrapper.inventory import Holding, Item
 from almapiwrapper.acquisitions import POLine
 import time
+import re
 
 from utils import xlstools
 from utils.processmonitoring import ProcessMonitor
@@ -450,3 +451,27 @@ def make_reception(i: int, config: xlstools.Config) -> Optional[POLine]:
         process_monitor.df.at[i, 'Error'] += ' - SOLVED'
     process_monitor.save(rank=i)
     return pol_d
+
+
+def mod_item(item: Item) -> Item:
+    """
+    Update items according to rules
+
+    Parameters
+    ----------
+    item: Item
+
+    Returns
+    -------
+    item: updated `Item`
+    """
+
+    if item.error:
+        return item
+
+    internal_note_2 = item.data.find('.//internal_note_2')
+    if internal_note_2 and internal_note_2.text and len(internal_note_2.text) > 0:
+        internal_note_2.text = re.sub(r'Status: \d\d\d \- Prêt limité\s?|?', '', internal_note_2.text)
+
+
+    return item
