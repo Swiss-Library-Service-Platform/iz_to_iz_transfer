@@ -185,6 +185,30 @@ class ProcessMonitor:
             logging.critical(f"Error connecting to MongoDB: {e}")
             sys.exit(1)
 
+    def initiate_mongodb_add_data_col(self) -> pymongo.collection.Collection:
+        """
+
+        Returns
+        -------
+        pymongo.collection.Collection
+            MongoDB collection used to store processing rows.
+        """
+        config = xlstools.get_config()
+        db_name = f'{config["iz_d"]}_{config["lib_d"]}'
+        col_name = f'{db_name}_add_data'
+
+        try:
+            client = self._get_mongo_client()
+            return client[db_name][col_name]
+        except (AutoReconnect, ServerSelectionTimeoutError) as e:
+            logging.warning(f"Mongo timeout/reconnect needed: {e}")
+            self._reset_mongo_client()
+            client = self._get_mongo_client()  # retry unique
+            return client[db_name][col_name]
+        except Exception as e:
+            logging.critical(f"Error connecting to MongoDB: {e}")
+            sys.exit(1)
+
     def check_existing_data(self) -> bool:
         """
         Checks if the process data already exists.

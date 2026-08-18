@@ -3,7 +3,6 @@ from almapiwrapper.inventory import Holding, Item
 from almapiwrapper.acquisitions import POLine
 import time
 import re
-
 from utils import xlstools
 from utils.processmonitoring import ProcessMonitor
 from copy import deepcopy
@@ -215,6 +214,11 @@ def clean_item_fields(item_data: etree.Element, rec_loc: str, retry: bool = Fals
             if retry:
                 logging.warning(f'Item {item_data.find(".//barcode").text}: delete field "{field}": "{field_element.text}"')
             field_element.getparent().remove(field_element)
+
+    # Used to make specific updates to the item data,
+    # such as updating internal notes or other fields
+    # based on rules.
+    mod_item(item_data)
 
     return item_data
 
@@ -453,25 +457,52 @@ def make_reception(i: int, config: xlstools.Config) -> Optional[POLine]:
     return pol_d
 
 
-def mod_item(item: Item) -> Item:
+def mod_item(item_data: etree.Element) -> etree.Element:
     """
     Update items according to rules
 
     Parameters
     ----------
-    item: Item
+    item_data: `Item` data to update
 
     Returns
     -------
-    item: updated `Item`
+    item: `Item` updated item data
     """
+    process_monitor = ProcessMonitor()
 
-    if item.error:
-        return item
+    barcode = item_data.find('.//barcode').text
 
-    internal_note_2 = item.data.find('.//internal_note_2')
-    if internal_note_2 and internal_note_2.text and len(internal_note_2.text) > 0:
-        internal_note_2.text = re.sub(r'Status: \d\d\d \- Prêt limité\s?|?', '', internal_note_2.text)
+    # Clean internal_note_1 field by removing specific phrases and trimming unwanted characters
+    internal_note_1 = item_data.find('.//internal_note_1')
+    if internal_note_1.text and len(internal_note_1.text) > 0:
+        old_text = internal_note_1.text
+        internal_note_1.text = re.sub(r'Status: \d\d\d \- Prêt limité', '', internal_note_1.text).strip(' -|;')
+        if old_text != internal_note_1.text:
+            logging.info(f'Item {barcode}: internal_note_1 updated from "{old_text}" to "{internal_note_1.text}"')
 
+    # Clean internal_note_2 field by removing specific phrases and trimming unwanted characters
+    internal_note_2 = item_data.find('.//internal_note_2')
+    if internal_note_2.text and len(internal_note_2.text) > 0:
+        old_text = internal_note_1.text
+        internal_note_2.text = internal_note_2.text.replace('beschränkte Ausleihe', '').replace('Prêt limité', '').strip(' -|;')
+        if old_text != internal_note_2.text:
+            logging.info(f'Item {barcode}: internal_note_2 updated to "{internal_note_2.text}"')
 
-    return item
+    # Use mongodb to get the internal_note_3 from the add_data collection and update the item_data accordingly
+    col_add_data = process_monitor.initiate_mongodb_add_data_col()
+    old_text = item_data.find('.//internal_note_3').text
+    internal_note_3 = col_add_data.find_one({'barcode': barcode})
+
+    if internal_note_3 is not None:
+        if item_data.find('.//internal_note_3') is not None and item_data.find('.//internal_note_3').text is not None and internal_note_3['internal_note_3'] in item_data.find('.//internal_note_3').text:
+            pass
+        elif item_data.find('.//internal_note_3') is not None and item_data.find(
+                './/internal_note_3').text is not None and len(item_data.find('.//internal_note_3').text) > 0:
+            item_data.find('.//internal_note_3').text += ' | ' + internal_note_3['internal_note_3']
+        else:
+            item_data.find('.//internal_note_3').text = internal_note_3['internal_note_3']
+        if old_text != item_data.find('.//internal_note_3').text:
+            logging.info(f'Item {barcode}: internal_note_3 updated from {old_text} to "{item_data.find(".//internal_note_3").text}"')
+
+    return item_data
