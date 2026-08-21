@@ -29,7 +29,7 @@ def main() -> None:
     log_filename = xlstools.get_raw_filename(excel_filepath)
     config_log(log_filename)
 
-    logging.info(f"Add bibs to collections started: {excel_filepath}")
+    logging.info(f"Add copy of collections started: {excel_filepath}")
 
     xlstools.is_form_valid(excel_filepath)
     xlstools.set_config(excel_filepath)
@@ -38,6 +38,10 @@ def main() -> None:
     process_monitor = ProcessMonitor(excel_filepath, "Collections")
     nb_treatments = 0
     index_rows = process_monitor.df.loc[~process_monitor.df["Copied"].fillna(False)].index.tolist()
+
+
+    if len(index_rows) < config["max_treatments"]:
+        config["max_treatments"] = len(index_rows)
     for i in index_rows:
         nb_treatments += 1
         logging.info(
@@ -51,7 +55,7 @@ def main() -> None:
             logging.info(f"Max number of treatments reached: {config['max_treatments']}")
             break
 
-    logging.info("Add bib records to collections terminated")
+    logging.info("Copy collections terminated")
 
 
 if __name__ == "__main__":

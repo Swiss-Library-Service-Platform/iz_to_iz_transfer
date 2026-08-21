@@ -7,6 +7,7 @@ from almapiwrapper.users import Request
 
 from utils import polines, bibs, holdings, items, xlstools, loans, requests
 from utils.processmonitoring import ProcessMonitor
+from copy import deepcopy
 
 
 @xlstools.with_fresh_config
@@ -353,8 +354,16 @@ def collection(i: int, config: xlstools.Config) -> None:
         return None
 
     # Get source collection information
-    collection_id_s = process_monitor.df.at[i, 'Collection_id_s']
+    collection_id_s = process_monitor.df.at[i, 'Collection_id_s'] if pd.notnull(process_monitor.df.at[i, 'Collection_id_s']) else None
     col_s = Collection(collection_id_s, zone=config['iz_s'], env=config['env'])
+    if col_s.data.get('parent_pid'):
+        parent_col_id_s = col_s.data['parent_pid']['value']
+    else:
+        parent_col_id_s = None
+
+    collection_id_d = process_monitor.get_corresponding_collection_id(collection_id_s)
+    parent_col_id_d = None
+
     bibs_s = col_s.bibs
 
     if col_s.error:
@@ -363,47 +372,89 @@ def collection(i: int, config: xlstools.Config) -> None:
         process_monitor.save(rank=i)
         return None
 
-    # Get destination collection information
-    collection_id_d = process_monitor.df.at[i, 'Collection_id_d']
-    col_d = Collection(collection_id_d, zone=config['iz_d'], env=config['env'])
-    bibs_d = col_d.bibs
+    if collection_id_d is None:
+        # Copy of the collection is required, we need to check if the parent collection exists in the destination IZ
+        if parent_col_id_s is not None:
+            parent_col_id_d = process_monitor.get_corresponding_parent_col_id(parent_col_id_s)
 
+            if parent_col_id_d is None:
+                logging.error(f"Parent collection ID {parent_col_id_s} not found in destination IZ for row {i}.")
+                process_monitor.df.at[i, 'Error'] = 'Parent collection not found in destination IZ'
+                process_monitor.save(rank=i)
+                return None
+            elif pd.isnull(process_monitor.df.at[i, 'Parent_col_id_d']):
+                process_monitor.set_corresponding_parent_col_id(parent_col_id_s, parent_col_id_d)
+                process_monitor.save(rank=i)
+
+        # Copy of the source collection to the destination IZ
+        data = deepcopy(col_s.data)
+        if col_s.error:
+            logging.error(f"{repr(col_s)}: {col_s.error_msg}")
+            process_monitor.df.at[i, 'Error'] = 'Source Collection not found'
+            process_monitor.save(rank=i)
+            return None
+
+        if parent_col_id_d is not None:
+            data['parent_pid']['value'] = parent_col_id_d
+
+        del data['thumbnail']
+
+        data['library']['value'] = config['lib_d']
+
+        col_d = Collection(data=data, zone=config['iz_d'], env=config['env']).create()
+        if col_d.error:
+            logging.error(f"{repr(col_d)}: {col_d.error_msg}")
+            process_monitor.df.at[i, 'Error'] = 'Destination Collection not created'
+            process_monitor.save(rank=i)
+            return None
+        else:
+            collection_id_d = col_d.pid
+            process_monitor.set_corresponding_collection_id(collection_id_s, collection_id_d)
+            process_monitor.save(rank=i)
+
+    # Get destination collection information
+    col_d = Collection(collection_id_d, zone=config['iz_d'], env=config['env'])
+    _ = col_d.data  # Ensure the collection data is loaded
     if col_d.error:
         logging.error(f"{repr(col_d)}: {col_d.error_msg}")
         process_monitor.df.at[i, 'Error'] = 'Destination Collection not found'
         process_monitor.save(rank=i)
         return None
 
-    mms_id_col_d = [bib.get_mms_id() for bib in bibs_d]
+    # Copy bibs from source collection to destination collection
+    if process_monitor.df.at[i, 'Copy_bibs'] == 'Yes':
+        bibs_d = col_d.bibs
 
-    for bib_s in bibs_s:
-        # Copy each bib from the source collection to the destination collection
-        bib_d = bibs.get_corresponding_bib_from_col(bib_s, i)
-        mms_id_d = bib_d.get_mms_id() if bib_d else None
+        mms_id_col_d = [bib.get_mms_id() for bib in bibs_d]
 
-        if bib_d is None or bib_d.error:
-            continue
+        for bib_s in bibs_s:
+            # Copy each bib from the source collection to the destination collection
+            bib_d = bibs.get_corresponding_bib_from_col(bib_s, i)
+            if bib_d is None or bib_d.error:
+                logging.error(f"{repr(bib_s)}: could not copy to destination collection")
+                continue
+            mms_id_d = bib_d.get_mms_id() if bib_d else None
 
-        if mms_id_d in mms_id_col_d:
-            logging.warning(f"{col_d}: {mms_id_d} already in the collection")
-            continue
+            if mms_id_d in mms_id_col_d:
+                logging.warning(f"{col_d}: {mms_id_d} already in the collection")
+                continue
 
-        # Add the bib to the destination collection
-        mms_id_col_d.append(mms_id_d)
-        col_d.add_bib(bib_d)
+            # Add the bib to the destination collection
+            mms_id_col_d.append(mms_id_d)
+            col_d.add_bib(bib_d)
 
-    # Mark the row as copied
-    if len(bibs_s) == len(mms_id_col_d):
-        process_monitor.df.at[i, 'Copied'] = True
-        error_msg = process_monitor.df.at[i, 'Error']
-        if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
-            process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-        process_monitor.save(rank=i)
-        logging.info(f'{repr(col_s)}: collection completed with {len(mms_id_col_d)} bibs')
-    else:
-        logging.error(f'{repr(col_s)}: collection not completed, {len(mms_id_col_d)} bibs copied out of {len(bibs_s)}')
-        process_monitor.df.at[i, 'Error'] = 'Collection not completed'
-        process_monitor.save(rank=i)
+        # Mark the row as copied
+        if len(bibs_s) == len(mms_id_col_d):
+            process_monitor.df.at[i, 'Copied'] = True
+            error_msg = process_monitor.df.at[i, 'Error']
+            if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
+                process_monitor.df.at[i, 'Error'] += ' - SOLVED'
+            process_monitor.save(rank=i)
+            logging.info(f'{repr(col_s)}: collection completed with {len(mms_id_col_d)} bibs')
+        else:
+            logging.error(f'{repr(col_s)}: collection not completed, {len(mms_id_col_d)} bibs copied out of {len(bibs_s)}')
+            process_monitor.df.at[i, 'Error'] = 'Collection not completed'
+            process_monitor.save(rank=i)
 
     return None
 

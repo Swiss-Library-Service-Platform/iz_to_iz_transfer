@@ -484,7 +484,7 @@ def mod_item(item_data: etree.Element) -> etree.Element:
     # Clean internal_note_2 field by removing specific phrases and trimming unwanted characters
     internal_note_2 = item_data.find('.//internal_note_2')
     if internal_note_2.text and len(internal_note_2.text) > 0:
-        old_text = internal_note_1.text
+        old_text = internal_note_2.text
         internal_note_2.text = internal_note_2.text.replace('beschränkte Ausleihe', '').replace('Prêt limité', '').strip(' -|;')
         if old_text != internal_note_2.text:
             logging.info(f'Item {barcode}: internal_note_2 updated to "{internal_note_2.text}"')

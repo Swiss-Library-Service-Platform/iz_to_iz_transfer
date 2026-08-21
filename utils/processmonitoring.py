@@ -124,7 +124,7 @@ class ProcessMonitor:
         elif self.process_type == 'Bibs':
             return ['MMS_id_s', 'MMS_id_d', 'Copied', 'Error']
         elif self.process_type == 'Collections':
-            return ['Collection_id_s', 'Collection_id_d', 'Copied', 'Error']
+            return ['Collection_id_s', 'Parent_col_id_s', 'Collection_id_d', 'Parent_col_id_d',  'Copy_bibs', 'Copied', 'Error']
         elif self.process_type == 'Loans':
             return ['Primary_id', 'Barcode_s', 'MMS_id_s', 'Holding_id_s', 'Item_id_s', 'MMS_id_d', 'Holding_id_d', 'Item_id_d', 'Barcode_d', 'Error']
         elif self.process_type == 'Requests':
@@ -341,11 +341,12 @@ class ProcessMonitor:
         data = pd.read_excel(self.excel_filepath, sheet_name=self.process_type, dtype=str)
         data.columns = self.get_columns()[:len(data.columns)]
         self.df = pd.concat([self.df, data], ignore_index=True)
-        self.df = self.df.drop_duplicates(subset=data.columns.tolist(), keep='first')
+        if self.process_type == 'Collections':
+            self.df = self.df.drop_duplicates(subset=['Collection_id_s'], keep='first')
+        else:
+            self.df = self.df.drop_duplicates(subset=data.columns.tolist(), keep='first')
         if 'Copied' in self.df.columns:
             self.df['Copied'] = self.df['Copied'].fillna(False)
-
-
 
     def get_corresponding_poline(self, pol_number: str) -> tuple[str | None, str | None]:
         """
@@ -431,6 +432,44 @@ class ProcessMonitor:
         value = result.values[0] if len(result) > 0 else None
         return None if pd.isnull(value) else value
 
+    def get_corresponding_collection_id(self, col_id_s: str) -> str | None:
+        """
+        Returns the DataFrame row corresponding to the given collection ID.
+
+        Parameters
+        ----------
+        col_id_s : str
+            The collection ID to search for.
+
+        Returns
+        -------
+        str | None
+            The corresponding MMS ID if found, otherwise None.
+        """
+        result = self.df.loc[self.df['Collection_id_s'] == col_id_s, 'Collection_id_d']
+        value = result.values[0] if len(result) > 0 else None
+        return None if pd.isnull(value) else value
+
+    def get_corresponding_parent_col_id(self, parent_col_id_s: str) -> str | None:
+        """
+        Returns the DataFrame row corresponding to the given parent collection ID.
+
+        Parameters
+        ----------
+        parent_col_id_s : str
+            The parent collection ID to search for.
+
+        Returns
+        -------
+        str | None
+            The corresponding MMS ID if found, otherwise None.
+        """
+        result = self.df.loc[(self.df['Parent_col_id_s'] == parent_col_id_s) & pd.notnull(self.df['Parent_col_id_d']), 'Parent_col_id_d']
+        value = result.values[0] if len(result) > 0 else None
+        if value is None:
+            value = self.get_corresponding_collection_id(parent_col_id_s)
+        return None if pd.isnull(value) else value
+
     def set_corresponding_poline(self, pol_number: str, poline_d: str, purchase_type: str) -> None:
         """
         Sets the destination PoLine number for all rows matching the given source PoLine number.
@@ -493,6 +532,34 @@ class ProcessMonitor:
         """
         self.df.loc[self.df['Item_id_s'] == item_id_s, 'Item_id_d'] = item_id_d
         self._update_many_mongodb('Item_id_s', item_id_s, {'Item_id_d': item_id_d})
+
+    def set_corresponding_collection_id(self, collection_id_s: str, collection_id_d: str) -> None:
+        """
+        Sets the destination Collection ID for all rows matching the given source Collection ID.
+
+        Parameters
+        ----------
+        collection_id_s : str
+            The source Collection ID to match.
+        collection_id_d : str
+            The destination Collection ID to set.
+        """
+        self.df.loc[self.df['Collection_id_s'] == collection_id_s, 'Collection_id_d'] = collection_id_d
+        self._update_many_mongodb('Collection_id_s', collection_id_s, {'Collection_id_d': collection_id_d})
+
+    def set_corresponding_parent_col_id(self, parent_col_id_s: str, parent_col_id_d: str) -> None:
+        """
+        Sets the destination Parent Collection ID for all rows matching the given source Parent Collection ID.
+
+        Parameters
+        ----------
+        parent_col_id_s : str
+            The source Parent Collection ID to match.
+        parent_col_id_d : str
+            The destination Parent Collection ID to set.
+        """
+        self.df.loc[self.df['Parent_col_id_s'] == parent_col_id_s, 'Parent_col_id_d'] = parent_col_id_d
+        self._update_many_mongodb('Parent_col_id_s', parent_col_id_s, {'Parent_col_id_d': parent_col_id_d})
 
     @classmethod
     def reset(cls):
