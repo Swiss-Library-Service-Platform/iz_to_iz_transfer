@@ -449,11 +449,11 @@ def make_reception(i: int, config: xlstools.Config) -> Optional[POLine]:
         process_monitor.save(rank=i)
         return None
 
-    process_monitor.df.at[i, 'Copied'] = True
-    error_msg = process_monitor.df.at[i, 'Error']
-    if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
-        process_monitor.df.at[i, 'Error'] += ' - SOLVED'
-    process_monitor.save(rank=i)
+    # process_monitor.df.at[i, 'Copied'] = True
+    # error_msg = process_monitor.df.at[i, 'Error']
+    # if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
+    #     process_monitor.df.at[i, 'Error'] += ' - SOLVED'
+    # process_monitor.save(rank=i)
     return pol_d
 
 

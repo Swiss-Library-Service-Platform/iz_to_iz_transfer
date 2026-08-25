@@ -35,8 +35,13 @@ def main() -> None:
 
     config = xlstools.get_config()
     process_monitor = ProcessMonitor(excel_filepath, "PoLines")
+
     nb_treatments = 0
     index_rows = process_monitor.df.loc[~process_monitor.df["Copied"].fillna(False)].index.tolist()
+
+    if len(index_rows) < config["max_treatments"]:
+        config["max_treatments"] = len(index_rows)
+
     for i in index_rows:
         nb_treatments += 1
         logging.info(

@@ -26,6 +26,7 @@ def poline(i: int, config: xlstools.Config) -> None:
     holding_s = None
     pol_d = None
     holding_d = None
+    item_d = None
 
     # Check if the row is already copied
     if process_monitor.df.at[i, 'Copied']:
@@ -140,9 +141,24 @@ def poline(i: int, config: xlstools.Config) -> None:
                 return None
 
         if config['make_reception'] and process_monitor.df.at[i, 'Received']:
+            logging.info(f"Starting reception for item {item_id_d} in row {i}.")
             pol_d = items.make_reception(i)
             if pol_d is None or pol_d.error:
                 return None
+        else:
+            logging.info(f"Reception not required or not configured for this item.")
+
+
+        if pol_number_d is None and (pol_d is None or pol_d.error):
+            return None
+        if item_id_d is None and (item_d is None or item_d.error):
+            return None
+        process_monitor.df.at[i, 'Copied'] = True
+        error_msg = process_monitor.df.at[i, 'Error']
+        if pd.notnull(error_msg) and len(error_msg) > 0 and ' - SOLVED' not in error_msg:
+            process_monitor.df.at[i, 'Error'] += ' - SOLVED'
+        process_monitor.save(rank=i)
+
     else:
         # If the purchase type is not continuous or one-time, we skip the item processing
         logging.warning(f"Unknown purchase type '{pol_purchase_type}' for row {i}, skipping item processing.")
