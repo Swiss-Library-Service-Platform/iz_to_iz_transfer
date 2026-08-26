@@ -218,7 +218,8 @@ def clean_item_fields(item_data: etree.Element, rec_loc: str, retry: bool = Fals
     # Used to make specific updates to the item data,
     # such as updating internal notes or other fields
     # based on rules.
-    mod_item(item_data)
+    if rec_loc == 'dest':
+        mod_item(item_data)
 
     return item_data
 
@@ -478,6 +479,7 @@ def mod_item(item_data: etree.Element) -> etree.Element:
     if internal_note_1.text and len(internal_note_1.text) > 0:
         old_text = internal_note_1.text
         internal_note_1.text = re.sub(r'Status: \d\d\d \- Prêt limité', '', internal_note_1.text).strip(' -|;')
+        internal_note_1.text = re.sub(r'Status: \d\d\d \- Article', '', internal_note_1.text).strip(' -|;')
         if old_text != internal_note_1.text:
             logging.info(f'Item {barcode}: internal_note_1 updated from "{old_text}" to "{internal_note_1.text}"')
 
@@ -486,6 +488,7 @@ def mod_item(item_data: etree.Element) -> etree.Element:
     if internal_note_2.text and len(internal_note_2.text) > 0:
         old_text = internal_note_2.text
         internal_note_2.text = internal_note_2.text.replace('beschränkte Ausleihe', '').replace('Prêt limité', '').strip(' -|;')
+        internal_note_2.text = re.sub(r'\s*\|\s*Article$', '', internal_note_2.text).strip(' -|;')
         if old_text != internal_note_2.text:
             logging.info(f'Item {barcode}: internal_note_2 updated to "{internal_note_2.text}"')
 
@@ -505,4 +508,9 @@ def mod_item(item_data: etree.Element) -> etree.Element:
         if old_text != item_data.find('.//internal_note_3').text:
             logging.info(f'Item {barcode}: internal_note_3 updated from {old_text} to "{item_data.find(".//internal_note_3").text}"')
 
+    mat_type = item_data.find('.//physical_material_type')
+    location = item_data.find('.//location')
+    if mat_type is not None and location is not None and mat_type.text == 'BOOK' and location.text == 'OFJ-Artikl':
+        item_data.find('.//physical_material_type').text = 'ARTICLE'
+        logging.info(f'Item {barcode}: update material type to "Article" because location is "OFJ-Artikl" and physical_material_type is "BOOK"')
     return item_data
