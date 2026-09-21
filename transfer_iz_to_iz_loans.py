@@ -37,6 +37,10 @@ def main() -> None:
     process_monitor = ProcessMonitor(excel_filepath, "Loans")
     nb_treatments = 0
     index_rows = process_monitor.df.loc[~process_monitor.df["Copied"].fillna(False)].index.tolist()
+
+    if len(index_rows) < config["max_treatments"]:
+        config["max_treatments"] = len(index_rows)
+
     for i in index_rows:
         nb_treatments += 1
         if pd.notnull(process_monitor.df.at[i, "Item_id_s"]):

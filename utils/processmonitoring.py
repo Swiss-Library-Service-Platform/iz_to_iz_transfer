@@ -126,7 +126,7 @@ class ProcessMonitor:
         elif self.process_type == 'Collections':
             return ['Collection_id_s', 'Parent_col_id_s', 'Collection_id_d', 'Parent_col_id_d',  'Copy_bibs', 'Copied', 'Error']
         elif self.process_type == 'Loans':
-            return ['Primary_id', 'Barcode_s', 'MMS_id_s', 'Holding_id_s', 'Item_id_s', 'MMS_id_d', 'Holding_id_d', 'Item_id_d', 'Barcode_d', 'Error']
+            return ['Primary_id', 'Barcode_s', 'MMS_id_s', 'Holding_id_s', 'Item_id_s', 'MMS_id_d', 'Holding_id_d', 'Item_id_d', 'Barcode_d', 'Copied', 'Error']
         elif self.process_type == 'Requests':
             return ['Primary_id', 'Request_id_s', 'Request_id_d', 'Copied', 'Error']
         else:
@@ -343,6 +343,8 @@ class ProcessMonitor:
         self.df = pd.concat([self.df, data], ignore_index=True)
         if self.process_type == 'Collections':
             self.df = self.df.drop_duplicates(subset=['Collection_id_s'], keep='first')
+        if self.process_type == 'Loans':
+            self.df = self.df.drop_duplicates(subset=['Barcode_s'], keep='first')
         else:
             self.df = self.df.drop_duplicates(subset=data.columns.tolist(), keep='first')
         if 'Copied' in self.df.columns:
