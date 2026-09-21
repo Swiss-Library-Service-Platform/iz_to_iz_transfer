@@ -512,5 +512,5 @@ def mod_item(item_data: etree.Element) -> etree.Element:
     location = item_data.find('.//location')
     if mat_type is not None and location is not None and mat_type.text == 'BOOK' and location.text == 'OFJ-Artikl':
         item_data.find('.//physical_material_type').text = 'ARTICLE'
-        logging.info(f'Item {barcode}: update material type to "Article" because location is "OFJ-Artikl" and physical_material_type is "BOOK"')
+        logging.info(f'Item {barcode}: update material type to "Article"')
     return item_data

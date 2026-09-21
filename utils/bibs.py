@@ -195,17 +195,20 @@ def copy_local_extensions(iz_bib_s: IzBib, iz_bib_d: IzBib, i: int, config: xlst
     if len(specific_local_extensions) == 0:
         return iz_bib_d
 
-    # Delete specific existing local extensions
-    for local_extension in specific_local_extensions:
-        iz_bib_s.data.find('.//record').remove(local_extension)
-    iz_bib_s.sort_fields().update()
+    # Probably a bad idea to delete local extensions in the source IZ bib
+    # It prevents to check the source data for data quality check.
 
-    if iz_bib_s.error:
-        logging.error(f"{repr(iz_bib_s)}: {iz_bib_s.error_msg}")
-        process_monitor.df.at[i, 'Error'] = 'Local extensions not deleted'
-        return None
-
-    logging.info(f"{repr(iz_bib_s)}: {len(specific_local_extensions)} local extensions deleted")
+    # # Delete specific existing local extensions
+    # for local_extension in specific_local_extensions:
+    #     iz_bib_s.data.find('.//record').remove(local_extension)
+    # iz_bib_s.sort_fields().update()
+    #
+    # if iz_bib_s.error:
+    #     logging.error(f"{repr(iz_bib_s)}: {iz_bib_s.error_msg}")
+    #     process_monitor.df.at[i, 'Error'] = 'Local extensions not deleted'
+    #     return None
+    #
+    # logging.info(f"{repr(iz_bib_s)}: {len(specific_local_extensions)} local extensions deleted")
 
     return iz_bib_d
 
@@ -225,16 +228,16 @@ def get_specific_local_extensions_to_transfer(iz_bib_s: IzBib) -> List[etree.Ele
         List of 998 field elements to be transferred.
     """
     local_extensions = []
-    local_extensions += iz_bib_s.data.xpath(
-        ".//datafield[@tag='961'][subfield[@code='2' and (normalize-space()='ofj' or normalize-space()='ifofj-')]]"
-    )
-    local_extensions += iz_bib_s.data.xpath(
-        ".//datafield[@tag='990'][subfield[@code='a' and ("
-        "normalize-space()='ofjnewmono' or "
-        "normalize-space()='ofjdon' or "
-        "normalize-space()='ofjsuite' or "
-        "normalize-space()='ofjper' or "
-        "normalize-space()='ofjbib'"
-        ")]]"
-    )
+    # local_extensions += iz_bib_s.data.xpath(
+    #     ".//datafield[@tag='961'][subfield[@code='2' and (normalize-space()='ofj' or normalize-space()='ifofj-')]]"
+    # )
+    # local_extensions += iz_bib_s.data.xpath(
+    #     ".//datafield[@tag='990'][subfield[@code='a' and ("
+    #     "normalize-space()='ofjnewmono' or "
+    #     "normalize-space()='ofjdon' or "
+    #     "normalize-space()='ofjsuite' or "
+    #     "normalize-space()='ofjper' or "
+    #     "normalize-space()='ofjbib'"
+    #     ")]]"
+    # )
     return local_extensions
