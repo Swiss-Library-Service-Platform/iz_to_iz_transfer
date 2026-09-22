@@ -73,6 +73,17 @@ def create_loan(i: int, config: xlstools.Config) -> Loan | None:
     # Attempt to create a loan
     loan = user_d.create_loan(item=item_d, library=library_d, circ_desk=config['circ_desk_d'])
 
+    if user_d.error:
+        if user_d.error_msg:
+            error_msg = user_d.error_msg
+        else:
+            error_msg = 'Unknown error occurred during loan creation.'
+
+        logging.error(f'{repr(user_d)}: {error_msg}')
+        process_monitor.df.at[i, 'Error'] = f'Loan creation failed: {error_msg}'
+        process_monitor.save(rank=i)
+        return None
+
     return loan
 
 
