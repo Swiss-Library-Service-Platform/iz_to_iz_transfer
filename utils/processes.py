@@ -516,10 +516,6 @@ def loan(i: int, config: xlstools.Config) -> None:
         loan_d = loans.create_loan(i)
 
         if loan_d is None or loan_d.error:
-            if loan_d is not None:
-                logging.error(f"{repr(loan_d)}: {loan_d.error_msg}")
-            process_monitor.df.at[i, 'Error'] = 'Destination item not loaned'
-            process_monitor.save(rank=i)
             return None
         else:
             # If the loan was successful, we update the DataFrame
